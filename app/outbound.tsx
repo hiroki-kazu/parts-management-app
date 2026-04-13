@@ -104,19 +104,23 @@ export default function OutboundScreen() {
       ...prev,
       partId: part.id,
       partName: part.name,
+      quantity: part.allowDecimal ? 0.1 : 1,
     }));
     setIsPartModalVisible(false);
     setPartSearchText("");
   };
 
   const handleQuantityChange = (delta: number) => {
+    const selectedPart = parts.find((p) => p.id === form.partId);
+    if (!selectedPart) return;
+
+    const step = selectedPart.allowDecimal ? 0.1 : 1;
     const newQuantity = form.quantity + delta;
+
     if (newQuantity > 0) {
       setForm((prev) => ({
         ...prev,
-        quantity: form.partId && parts.find((p) => p.id === form.partId)?.allowDecimal
-          ? Math.max(0.1, newQuantity)
-          : Math.max(1, newQuantity),
+        quantity: Math.round(newQuantity * 10) / 10,
       }));
     }
   };
@@ -131,6 +135,10 @@ export default function OutboundScreen() {
         Alert.alert("エラー", "ナンバー（下4桁）を入力してください");
         return;
       }
+      if (!form.customerName) {
+        Alert.alert("エラー", "顧客名を入力してください");
+        return;
+      }
       if (!form.partId) {
         Alert.alert("エラー", "部品を選択してください");
         return;
@@ -143,7 +151,7 @@ export default function OutboundScreen() {
       await addOutboundRecord({
         date: form.date,
         voucherNumber: form.voucherNumber,
-        customerName: form.customerName || "未登録",
+        customerName: form.customerName,
         vehicleNumber: form.vehicleNumber,
         partId: form.partId,
         partName: form.partName,
@@ -186,6 +194,8 @@ export default function OutboundScreen() {
       </View>
     </Pressable>
   );
+
+  const selectedPart = parts.find((p) => p.id === form.partId);
 
   return (
     <ScreenContainer className="p-4">
@@ -234,12 +244,19 @@ export default function OutboundScreen() {
 
         {/* 顧客名 */}
         <View className="mb-4">
-          <Text className="text-sm font-semibold text-foreground mb-2">顧客名</Text>
-          <View className="bg-surface border border-border rounded-lg px-4 py-3">
-            <Text className="text-foreground">
-              {form.customerName || "（ナンバー入力で自動表示）"}
+          <Text className="text-sm font-semibold text-foreground mb-2">顧客名 *</Text>
+          <TextInput
+            placeholder="顧客名を入力"
+            value={form.customerName}
+            onChangeText={(text) => setForm({ ...form, customerName: text })}
+            className="bg-surface border border-border rounded-lg px-4 py-3 text-foreground text-base"
+            placeholderTextColor="#999"
+          />
+          {form.vehicleNumber.length === 4 && (
+            <Text className="text-xs text-muted mt-1">
+              💡 ナンバーから自動検出した顧客名を編集できます
             </Text>
-          </View>
+          )}
         </View>
 
         {/* 部品選択 */}
@@ -299,10 +316,13 @@ export default function OutboundScreen() {
 
         {/* 数量 */}
         <View className="mb-6">
-          <Text className="text-sm font-semibold text-foreground mb-2">数量</Text>
+          <Text className="text-sm font-semibold text-foreground mb-2">
+            数量 {selectedPart?.allowDecimal ? "（小数対応）" : ""}
+          </Text>
           <View className="flex-row items-center gap-3">
             <Pressable
-              onPress={() => handleQuantityChange(-0.1)}
+              onPress={() => handleQuantityChange(selectedPart?.allowDecimal ? -0.1 : -1)}
+              disabled={!selectedPart}
               className="bg-surface border border-border rounded-lg w-12 h-12 items-center justify-center"
               style={({ pressed }) => [pressed && { opacity: 0.7 }]}
             >
@@ -310,19 +330,28 @@ export default function OutboundScreen() {
             </Pressable>
             <TextInput
               value={String(form.quantity)}
-              onChangeText={(text) => setForm({ ...form, quantity: parseFloat(text) || 0 })}
-              keyboardType="decimal-pad"
+              onChangeText={(text) => {
+                const num = parseFloat(text) || 0;
+                setForm({ ...form, quantity: num });
+              }}
+              keyboardType={selectedPart?.allowDecimal ? "decimal-pad" : "number-pad"}
               className="flex-1 bg-surface border border-border rounded-lg px-4 py-3 text-center text-foreground text-base"
               placeholderTextColor="#999"
             />
             <Pressable
-              onPress={() => handleQuantityChange(0.1)}
+              onPress={() => handleQuantityChange(selectedPart?.allowDecimal ? 0.1 : 1)}
+              disabled={!selectedPart}
               className="bg-surface border border-border rounded-lg w-12 h-12 items-center justify-center"
               style={({ pressed }) => [pressed && { opacity: 0.7 }]}
             >
               <Text className="text-lg font-bold text-foreground">+</Text>
             </Pressable>
           </View>
+          {selectedPart?.allowDecimal && (
+            <Text className="text-xs text-muted mt-1">
+              💡 小数点入力可能（例：0.5, 1.5）
+            </Text>
+          )}
         </View>
 
         {/* 保存ボタン */}
