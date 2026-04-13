@@ -602,3 +602,132 @@ export async function getMonthlyInventorySummary(month: string): Promise<string>
     throw error;
   }
 }
+
+
+/**
+ * CSV からバッチ部品追加
+ * CSV形式: 部品名,品番,単価,最低在庫数,小数対応
+ */
+export async function importPartsFromCSV(csvContent: string): Promise<{ success: number; failed: number; errors: string[] }> {
+  try {
+    const lines = csvContent.trim().split('\n');
+    const parts = await getParts();
+    let success = 0;
+    let failed = 0;
+    const errors: string[] = [];
+
+    // ヘッダーをスキップ
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+
+      try {
+        const [name, partNumber, unitPriceStr, minStockStr, allowDecimalStr] = line.split(',').map(v => v.trim());
+
+        if (!name || !partNumber) {
+          errors.push(`行${i + 1}: 部品名と品番は必須です`);
+          failed++;
+          continue;
+        }
+
+        const unitPrice = parseFloat(unitPriceStr) || 0;
+        const minStock = parseFloat(minStockStr) || 0;
+        const allowDecimal = allowDecimalStr?.toLowerCase() === 'true' || allowDecimalStr === '○';
+
+        // 重複チェック
+        if (parts.some(p => p.partNumber === partNumber)) {
+          errors.push(`行${i + 1}: 品番 ${partNumber} は既に存在します`);
+          failed++;
+          continue;
+        }
+
+        const newPart: Part = {
+          id: generateId(),
+          name,
+          partNumber,
+          unitPrice,
+          currentStock: 0,
+          minStock,
+          allowDecimal,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        parts.push(newPart);
+        success++;
+      } catch (error) {
+        errors.push(`行${i + 1}: パース エラー - ${String(error)}`);
+        failed++;
+      }
+    }
+
+    // すべての部品を保存
+    await AsyncStorage.setItem(STORAGE_KEYS.PARTS, JSON.stringify(parts));
+
+    return { success, failed, errors };
+  } catch (error) {
+    console.error("Error importing parts from CSV:", error);
+    throw error;
+  }
+}
+
+/**
+ * 全データをバックアップ（JSON形式）
+ */
+export async function exportAllDataAsJSON(): Promise<string> {
+  try {
+    const parts = await getParts();
+    const outboundRecords = await getOutboundRecords();
+    const inboundRecords = await getInboundRecords();
+    const customers = await getCustomers();
+    const monthlySnapshots = await getMonthlySnapshots();
+
+    const backupData = {
+      version: "1.0.0",
+      exportedAt: new Date().toISOString(),
+      parts,
+      outboundRecords,
+      inboundRecords,
+      customers,
+      monthlySnapshots,
+    };
+
+    return JSON.stringify(backupData, null, 2);
+  } catch (error) {
+    console.error("Error exporting all data:", error);
+    throw error;
+  }
+}
+
+/**
+ * バックアップから全データを復元
+ */
+export async function importAllDataFromJSON(jsonContent: string): Promise<{ success: boolean; message: string }> {
+  try {
+    const backupData = JSON.parse(jsonContent);
+
+    if (!backupData.version) {
+      throw new Error("無効なバックアップファイル形式です");
+    }
+
+    // 既存データをクリア
+    await AsyncStorage.multiSet([
+      [STORAGE_KEYS.PARTS, JSON.stringify(backupData.parts || [])],
+      [STORAGE_KEYS.OUTBOUND_RECORDS, JSON.stringify(backupData.outboundRecords || [])],
+      [STORAGE_KEYS.INBOUND_RECORDS, JSON.stringify(backupData.inboundRecords || [])],
+      [STORAGE_KEYS.CUSTOMERS, JSON.stringify(backupData.customers || [])],
+      [STORAGE_KEYS.MONTHLY_SNAPSHOTS, JSON.stringify(backupData.monthlySnapshots || [])],
+    ]);
+
+    return {
+      success: true,
+      message: `復元完了: 部品${backupData.parts?.length || 0}件、出庫${backupData.outboundRecords?.length || 0}件、入庫${backupData.inboundRecords?.length || 0}件`,
+    };
+  } catch (error) {
+    console.error("Error importing all data:", error);
+    return {
+      success: false,
+      message: `復元失敗: ${String(error)}`,
+    };
+  }
+}

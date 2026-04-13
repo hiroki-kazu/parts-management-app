@@ -15,7 +15,7 @@ import {
   Switch,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
-import { getParts, addPart, updatePart, deletePart } from "@/lib/storage";
+import { getParts, addPart, updatePart, deletePart, importPartsFromCSV, exportAllDataAsJSON, importAllDataFromJSON } from "@/lib/storage";
 import { Part } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import * as Haptics from "expo-haptics";
@@ -175,15 +175,34 @@ export default function PartsScreen() {
     <ScreenContainer className="p-4">
       <View className="flex-1">
         {/* ヘッダー */}
-        <View className="flex-row justify-between items-center mb-4">
-          <Text className="text-2xl font-bold text-foreground">部品マスタ</Text>
-          <Pressable
-            onPress={handleAddPart}
-            className="bg-primary px-4 py-2 rounded-full"
-            style={({ pressed }) => [pressed && { opacity: 0.7 }]}
-          >
-            <Text className="text-white font-semibold">+ 追加</Text>
-          </Pressable>
+        <View className="mb-4">
+          <View className="flex-row justify-between items-center mb-3">
+            <Text className="text-2xl font-bold text-foreground">部品マスタ</Text>
+            <Pressable
+              onPress={handleAddPart}
+              className="bg-primary px-4 py-2 rounded-full"
+              style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+            >
+              <Text className="text-white font-semibold">+ 追加</Text>
+            </Pressable>
+          </View>
+          {/* バッチ追加・バックアップボタン */}
+          <View className="flex-row gap-2">
+            <Pressable
+              onPress={() => Alert.alert("バッチ追加", "CSV ファイルのインポート機能は開発中です")}
+              className="flex-1 bg-blue-500 px-3 py-2 rounded"
+              style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+            >
+              <Text className="text-white text-sm font-semibold text-center">CSV インポート</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => Alert.alert("バックアップ", "バックアップ機能は開発中です")}
+              className="flex-1 bg-green-500 px-3 py-2 rounded"
+              style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+            >
+              <Text className="text-white text-sm font-semibold text-center">バックアップ</Text>
+            </Pressable>
+          </View>
         </View>
 
         {/* 検索フィールド */}
