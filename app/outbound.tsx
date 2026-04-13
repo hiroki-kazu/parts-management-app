@@ -27,6 +27,37 @@ import {
 import { Part, Customer } from "@/lib/types";
 import * as Haptics from "expo-haptics";
 
+/**
+ * 数量入力値の検証と正規化
+ */
+const validateQuantityInput = (text: string, allowDecimal: boolean): string => {
+  if (!text) return "";
+
+  // 数字と小数点のみを許可
+  let sanitized = text.replace(/[^0-9.]/g, "");
+
+  // 小数点の重複を防止
+  const dotCount = (sanitized.match(/\./g) || []).length;
+  if (dotCount > 1) {
+    // 最初の小数点のみを保持
+    const parts = sanitized.split(".");
+    sanitized = parts[0] + "." + parts.slice(1).join("");
+  }
+
+  // 小数非対応の場合は整数のみ
+  if (!allowDecimal) {
+    sanitized = sanitized.replace(/\./g, "");
+  }
+
+  // 小数精度を制限（小数第1位まで）
+  if (allowDecimal && sanitized.includes(".")) {
+    const [integer, decimal] = sanitized.split(".");
+    sanitized = integer + "." + decimal.substring(0, 1);
+  }
+
+  return sanitized;
+};
+
 interface OutboundForm {
   date: string;
   voucherNumber: string;
@@ -54,6 +85,7 @@ export default function OutboundScreen() {
   const [vehicleHistoryParts, setVehicleHistoryParts] = useState<Part[]>([]);
   const [isPartModalVisible, setIsPartModalVisible] = useState(false);
   const [partSearchText, setPartSearchText] = useState("");
+  const [quantityInputText, setQuantityInputText] = useState("1");
 
   useEffect(() => {
     loadParts();
@@ -106,6 +138,7 @@ export default function OutboundScreen() {
       partName: part.name,
       quantity: part.allowDecimal ? 0.1 : 1,
     }));
+    setQuantityInputText(part.allowDecimal ? "0.1" : "1");
     setIsPartModalVisible(false);
     setPartSearchText("");
   };
@@ -118,11 +151,29 @@ export default function OutboundScreen() {
     const newQuantity = form.quantity + delta;
 
     if (newQuantity > 0) {
+      const rounded = Math.round(newQuantity * 10) / 10;
       setForm((prev) => ({
         ...prev,
-        quantity: Math.round(newQuantity * 10) / 10,
+        quantity: rounded,
       }));
+      setQuantityInputText(String(rounded));
     }
+  };
+
+  const handleQuantityTextChange = (text: string) => {
+    const selectedPart = parts.find((p) => p.id === form.partId);
+    const allowDecimal = selectedPart?.allowDecimal ?? false;
+
+    // 入力値を検証・正規化
+    const validated = validateQuantityInput(text, allowDecimal);
+    setQuantityInputText(validated);
+
+    // 数値に変換
+    const num = parseFloat(validated) || 0;
+    setForm((prev) => ({
+      ...prev,
+      quantity: num,
+    }));
   };
 
   const handleSave = async () => {
@@ -144,7 +195,7 @@ export default function OutboundScreen() {
         return;
       }
       if (form.quantity <= 0) {
-        Alert.alert("エラー", "数量を入力してください");
+        Alert.alert("エラー", "数量は0より大きい値を入力してください");
         return;
       }
 
@@ -171,6 +222,7 @@ export default function OutboundScreen() {
         partName: "",
         quantity: 1,
       });
+      setQuantityInputText("1");
     } catch (error) {
       console.error("Error saving outbound record:", error);
       Alert.alert("エラー", "出庫入力に失敗しました");
@@ -329,11 +381,8 @@ export default function OutboundScreen() {
               <Text className="text-lg font-bold text-foreground">−</Text>
             </Pressable>
             <TextInput
-              value={String(form.quantity)}
-              onChangeText={(text) => {
-                const num = parseFloat(text) || 0;
-                setForm({ ...form, quantity: num });
-              }}
+              value={quantityInputText}
+              onChangeText={handleQuantityTextChange}
               keyboardType="numbers-and-punctuation"
               className="flex-1 bg-surface border border-border rounded-lg px-4 py-3 text-center text-foreground text-base"
               placeholderTextColor="#999"
@@ -349,7 +398,7 @@ export default function OutboundScreen() {
           </View>
           {selectedPart?.allowDecimal && (
             <Text className="text-xs text-muted mt-1">
-              💡 小数点入力可能（例：0.5, 1.5）
+              💡 小数点入力可能（例：0.5, 1.5）・小数第1位まで
             </Text>
           )}
         </View>

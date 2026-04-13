@@ -25,6 +25,37 @@ import {
 import { Part } from "@/lib/types";
 import * as Haptics from "expo-haptics";
 
+/**
+ * 数量入力値の検証と正規化
+ */
+const validateQuantityInput = (text: string, allowDecimal: boolean): string => {
+  if (!text) return "";
+
+  // 数字と小数点のみを許可
+  let sanitized = text.replace(/[^0-9.]/g, "");
+
+  // 小数点の重複を防止
+  const dotCount = (sanitized.match(/\./g) || []).length;
+  if (dotCount > 1) {
+    // 最初の小数点のみを保持
+    const parts = sanitized.split(".");
+    sanitized = parts[0] + "." + parts.slice(1).join("");
+  }
+
+  // 小数非対応の場合は整数のみ
+  if (!allowDecimal) {
+    sanitized = sanitized.replace(/\./g, "");
+  }
+
+  // 小数精度を制限（小数第1位まで）
+  if (allowDecimal && sanitized.includes(".")) {
+    const [integer, decimal] = sanitized.split(".");
+    sanitized = integer + "." + decimal.substring(0, 1);
+  }
+
+  return sanitized;
+};
+
 interface InboundForm {
   date: string;
   voucherNumber: string;
@@ -49,6 +80,7 @@ export default function InboundScreen() {
   const [frequentParts, setFrequentParts] = useState<Part[]>([]);
   const [isPartModalVisible, setIsPartModalVisible] = useState(false);
   const [partSearchText, setPartSearchText] = useState("");
+  const [quantityInputText, setQuantityInputText] = useState("1");
 
   useEffect(() => {
     loadParts();
@@ -70,21 +102,44 @@ export default function InboundScreen() {
       ...prev,
       partId: part.id,
       partName: part.name,
+      quantity: part.allowDecimal ? 0.1 : 1,
     }));
+    setQuantityInputText(part.allowDecimal ? "0.1" : "1");
     setIsPartModalVisible(false);
     setPartSearchText("");
   };
 
   const handleQuantityChange = (delta: number) => {
+    const selectedPart = parts.find((p) => p.id === form.partId);
+    if (!selectedPart) return;
+
+    const step = selectedPart.allowDecimal ? 0.1 : 1;
     const newQuantity = form.quantity + delta;
+
     if (newQuantity > 0) {
+      const rounded = Math.round(newQuantity * 10) / 10;
       setForm((prev) => ({
         ...prev,
-        quantity: form.partId && parts.find((p) => p.id === form.partId)?.allowDecimal
-          ? Math.max(0.1, newQuantity)
-          : Math.max(1, newQuantity),
+        quantity: rounded,
       }));
+      setQuantityInputText(String(rounded));
     }
+  };
+
+  const handleQuantityTextChange = (text: string) => {
+    const selectedPart = parts.find((p) => p.id === form.partId);
+    const allowDecimal = selectedPart?.allowDecimal ?? false;
+
+    // 入力値を検証・正規化
+    const validated = validateQuantityInput(text, allowDecimal);
+    setQuantityInputText(validated);
+
+    // 数値に変換
+    const num = parseFloat(validated) || 0;
+    setForm((prev) => ({
+      ...prev,
+      quantity: num,
+    }));
   };
 
   const handleSave = async () => {
@@ -102,7 +157,7 @@ export default function InboundScreen() {
         return;
       }
       if (form.quantity <= 0) {
-        Alert.alert("エラー", "数量を入力してください");
+        Alert.alert("エラー", "数量は0より大きい値を入力してください");
         return;
       }
 
@@ -127,6 +182,7 @@ export default function InboundScreen() {
         partName: "",
         quantity: 1,
       });
+      setQuantityInputText("1");
     } catch (error) {
       console.error("Error saving inbound record:", error);
       Alert.alert("エラー", "入庫入力に失敗しました");
@@ -150,6 +206,8 @@ export default function InboundScreen() {
       </View>
     </Pressable>
   );
+
+  const selectedPart = parts.find((p) => p.id === form.partId);
 
   return (
     <ScreenContainer className="p-4">
@@ -231,30 +289,39 @@ export default function InboundScreen() {
 
         {/* 数量 */}
         <View className="mb-6">
-          <Text className="text-sm font-semibold text-foreground mb-2">数量</Text>
+          <Text className="text-sm font-semibold text-foreground mb-2">
+            数量 {selectedPart?.allowDecimal ? "（小数対応）" : ""}
+          </Text>
           <View className="flex-row items-center gap-3">
             <Pressable
-              onPress={() => handleQuantityChange(-0.1)}
+              onPress={() => handleQuantityChange(selectedPart?.allowDecimal ? -0.1 : -1)}
+              disabled={!selectedPart}
               className="bg-surface border border-border rounded-lg w-12 h-12 items-center justify-center"
               style={({ pressed }) => [pressed && { opacity: 0.7 }]}
             >
               <Text className="text-lg font-bold text-foreground">−</Text>
             </Pressable>
             <TextInput
-              value={String(form.quantity)}
-              onChangeText={(text) => setForm({ ...form, quantity: parseFloat(text) || 0 })}
+              value={quantityInputText}
+              onChangeText={handleQuantityTextChange}
               keyboardType="numbers-and-punctuation"
               className="flex-1 bg-surface border border-border rounded-lg px-4 py-3 text-center text-foreground text-base"
               placeholderTextColor="#999"
             />
             <Pressable
-              onPress={() => handleQuantityChange(0.1)}
+              onPress={() => handleQuantityChange(selectedPart?.allowDecimal ? 0.1 : 1)}
+              disabled={!selectedPart}
               className="bg-surface border border-border rounded-lg w-12 h-12 items-center justify-center"
               style={({ pressed }) => [pressed && { opacity: 0.7 }]}
             >
               <Text className="text-lg font-bold text-foreground">+</Text>
             </Pressable>
           </View>
+          {selectedPart?.allowDecimal && (
+            <Text className="text-xs text-muted mt-1">
+              💡 小数点入力可能（例：0.5, 1.5）・小数第1位まで
+            </Text>
+          )}
         </View>
 
         {/* 保存ボタン */}

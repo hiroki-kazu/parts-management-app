@@ -162,3 +162,11 @@
 ### 小数点入力修正（追加）
 - [x] 出庫入力画面：keyboardType="numbers-and-punctuation"に変更
 - [x] 入庫入力画面：keyboardType="numbers-and-punctuation"に変更
+
+
+### 入力値検証強化
+- [x] 小数点の重複入力防止
+- [x] 負の値・ゼロ入力の防止
+- [x] 小数精度の制限（小数第1位まで）
+- [x] 非数値入力の制御
+- [x] 入力値のリアルタイム検証と自動修正
