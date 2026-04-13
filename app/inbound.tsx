@@ -304,7 +304,9 @@ export default function InboundScreen() {
             <TextInput
               value={quantityInputText}
               onChangeText={handleQuantityTextChange}
-              keyboardType="numbers-and-punctuation"
+              keyboardType="decimal-pad"
+              editable={true}
+              multiline={false}
               className="flex-1 bg-surface border border-border rounded-lg px-4 py-3 text-center text-foreground text-base"
               placeholderTextColor="#999"
             />
