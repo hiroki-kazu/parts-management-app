@@ -20,6 +20,7 @@ import {
   saveMonthlySnapshot,
   exportOutboundRecordsAsCSV,
   exportInboundRecordsAsCSV,
+  getMonthlyInventorySummary,
 } from "@/lib/storage";
 import * as Haptics from "expo-haptics";
 import * as FileSystem from "expo-file-system/legacy";
@@ -135,6 +136,33 @@ export default function MonthendScreen() {
     }
   };
 
+  const handleExportInventorySummary = async () => {
+    try {
+      setIsProcessing(true);
+      const csv = await getMonthlyInventorySummary(currentMonth);
+      const fileName = `inventory_summary_${currentMonth}.csv`;
+      const filePath = `${FileSystem.documentDirectory}${fileName}`;
+
+      await FileSystem.writeAsStringAsync(filePath, csv, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      // ファイル共有
+      await Share.share({
+        url: filePath,
+        title: "月末在庫集計CSV",
+        message: `${currentMonth}の月末在庫集計をエクスポートしました`,
+      });
+
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      console.error("Error exporting inventory summary:", error);
+      Alert.alert("エラー", "月末在庫集計のエクスポートに失敗しました");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   return (
     <ScreenContainer className="p-4">
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -199,6 +227,26 @@ export default function MonthendScreen() {
         {/* CSV出力 */}
         <View className="mb-6">
           <Text className="text-sm font-semibold text-foreground mb-2">3. CSV出力</Text>
+
+          {/* 月末在庫集計 */}
+          <View className="bg-surface rounded-lg p-4 mb-3 border border-border">
+            <Text className="text-sm font-semibold text-foreground mb-2">月末在庫集計</Text>
+            <Text className="text-xs text-muted mb-3">
+              形式: 部品名,品番,単価,出庫数,入庫数,現在庫数,在庫金額
+            </Text>
+            <Pressable
+              onPress={handleExportInventorySummary}
+              disabled={isProcessing}
+              className="bg-purple-500 rounded-lg py-3"
+              style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+            >
+              {isProcessing ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <Text className="text-center text-white font-bold">月末在庫集計をエクスポート</Text>
+              )}
+            </Pressable>
+          </View>
 
           {/* 出庫履歴 */}
           <View className="bg-surface rounded-lg p-4 mb-3 border border-border">

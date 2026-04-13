@@ -543,3 +543,62 @@ export async function exportInboundRecordsAsCSV(): Promise<string> {
     throw error;
   }
 }
+
+
+/**
+ * 月別集計：出庫数・入庫数・在庫金額を集計
+ */
+export async function getMonthlyInventorySummary(month: string): Promise<string> {
+  try {
+    const parts = await getParts();
+    const outboundRecords = await getOutboundRecords();
+    const inboundRecords = await getInboundRecords();
+
+    // 月別フィルタリング
+    const monthOutbound = outboundRecords.filter((r) => r.date.startsWith(month));
+    const monthInbound = inboundRecords.filter((r) => r.date.startsWith(month));
+
+    // 部品ごとに集計
+    const summary = parts.map((part) => {
+      const outboundQty = monthOutbound
+        .filter((r) => r.partId === part.id)
+        .reduce((sum, r) => sum + r.quantity, 0);
+
+      const inboundQty = monthInbound
+        .filter((r) => r.partId === part.id)
+        .reduce((sum, r) => sum + r.quantity, 0);
+
+      const inventoryValue = part.currentStock * part.unitPrice;
+
+      return {
+        partName: part.name,
+        partNumber: part.partNumber,
+        unitPrice: part.unitPrice,
+        outboundQty,
+        inboundQty,
+        currentStock: part.currentStock,
+        inventoryValue,
+      };
+    });
+
+    // CSV形式で出力
+    const header = "部品名,品番,単価,出庫数,入庫数,現在庫数,在庫金額\n";
+    const rows = summary
+      .map(
+        (s) =>
+          `${s.partName},${s.partNumber},${s.unitPrice},${s.outboundQty},${s.inboundQty},${s.currentStock},${s.inventoryValue}`
+      )
+      .join("\n");
+
+    // 合計行を追加
+    const totalOutbound = summary.reduce((sum, s) => sum + s.outboundQty, 0);
+    const totalInbound = summary.reduce((sum, s) => sum + s.inboundQty, 0);
+    const totalInventoryValue = summary.reduce((sum, s) => sum + s.inventoryValue, 0);
+    const totalRow = `合計,,,${totalOutbound},${totalInbound},,${totalInventoryValue}`;
+
+    return header + rows + "\n" + totalRow;
+  } catch (error) {
+    console.error("Error generating monthly inventory summary:", error);
+    throw error;
+  }
+}
