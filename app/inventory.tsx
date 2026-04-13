@@ -15,8 +15,9 @@ import {
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useRouter } from "expo-router";
-import { getParts } from "@/lib/storage";
+import { getParts, updatePart } from "@/lib/storage";
 import { Part, InventoryStatus } from "@/lib/types";
+import * as Haptics from "expo-haptics";
 
 interface InventoryItem {
   part: Part;
@@ -25,10 +26,13 @@ interface InventoryItem {
   isNegative: boolean;
 }
 
+type SortType = "name" | "stock" | "value" | "favorite";
+
 export default function InventoryScreen() {
   const router = useRouter();
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
   const [searchText, setSearchText] = useState("");
+  const [sortType, setSortType] = useState<SortType>("favorite");
 
   useFocusEffect(
     useCallback(() => {
@@ -92,65 +96,119 @@ export default function InventoryScreen() {
     }
   };
 
+  const sortItems = (items: InventoryItem[]): InventoryItem[] => {
+    const sorted = [...items];
+    switch (sortType) {
+      case "favorite":
+        // よく使う部品を上に、その後displayOrderで並べ替え
+        return sorted.sort((a, b) => {
+          if (a.part.isFavorite !== b.part.isFavorite) {
+            return a.part.isFavorite ? -1 : 1;
+          }
+          return (a.part.displayOrder || 0) - (b.part.displayOrder || 0);
+        });
+      case "name":
+        return sorted.sort((a, b) => a.part.name.localeCompare(b.part.name));
+      case "stock":
+        return sorted.sort((a, b) => b.part.currentStock - a.part.currentStock);
+      case "value":
+        return sorted.sort((a, b) => {
+          const aValue = a.part.currentStock * a.part.unitPrice;
+          const bValue = b.part.currentStock * b.part.unitPrice;
+          return bValue - aValue;
+        });
+      default:
+        return sorted;
+    }
+  };
+
   const filteredItems = inventoryItems.filter(
     (item) =>
       item.part.name.includes(searchText) ||
       item.part.partNumber.includes(searchText)
   );
 
+  const sortedItems = sortItems(filteredItems);
+
+  const handleToggleFavorite = async (part: Part) => {
+    try {
+      await updatePart(part.id, {
+        isFavorite: !part.isFavorite,
+      });
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      loadInventory();
+    } catch (error) {
+      console.error("Error toggling favorite:", error);
+    }
+  };
+
   const renderInventoryItem = ({ item }: { item: InventoryItem }) => (
-    <View className="bg-surface rounded-lg p-4 mb-3 border border-border">
-      <View className="flex-row justify-between items-start mb-2">
-        <View className="flex-1">
-          <Text className="text-lg font-semibold text-foreground">{item.part.name}</Text>
-          <Text className="text-sm text-muted">品番: {item.part.partNumber}</Text>
+    <Pressable
+      onPress={() => handleToggleFavorite(item.part)}
+      style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+    >
+      <View className="bg-surface rounded-lg p-4 mb-3 border border-border">
+        <View className="flex-row justify-between items-start mb-2">
+          <View className="flex-1">
+            <View className="flex-row items-center gap-2">
+              <Text className="text-lg font-semibold text-foreground">{item.part.name}</Text>
+              {item.part.isFavorite && <Text className="text-lg">⭐</Text>}
+            </View>
+            <Text className="text-sm text-muted">品番: {item.part.partNumber}</Text>
+          </View>
+          <View className={`${getStatusColor(item.status)} rounded-full px-3 py-1`}>
+            <Text className="text-white text-xs font-semibold">
+              {getStatusLabel(item.status)}
+            </Text>
+          </View>
         </View>
-        <View className={`${getStatusColor(item.status)} rounded-full px-3 py-1`}>
-          <Text className="text-white text-xs font-semibold">
-            {getStatusLabel(item.status)}
-          </Text>
+
+        <View className="border-t border-border pt-3 mt-3">
+          <View className="flex-row justify-between mb-2">
+            <Text className="text-sm text-muted">単価</Text>
+            <Text className="text-sm font-semibold text-foreground">
+              ¥{item.part.unitPrice.toLocaleString()}
+            </Text>
+          </View>
+          <View className="flex-row justify-between mb-2">
+            <Text className="text-sm text-muted">現在在庫</Text>
+            <Text className={`text-sm font-bold ${
+              item.isNegative ? "text-error" : item.isLow ? "text-warning" : "text-success"
+            }`}>
+              {item.part.currentStock}個
+            </Text>
+          </View>
+          <View className="flex-row justify-between mb-2">
+            <Text className="text-sm text-muted">最低在庫</Text>
+            <Text className="text-sm font-semibold text-foreground">
+              {item.part.minStock}個
+            </Text>
+          </View>
+          <View className="flex-row justify-between">
+            <Text className="text-sm text-muted">在庫金額</Text>
+            <Text className="text-sm font-bold text-foreground">
+              ¥{(item.part.currentStock * item.part.unitPrice).toLocaleString()}
+            </Text>
+          </View>
         </View>
+
+        {item.isNegative && (
+          <View className="mt-3 bg-error/10 rounded p-2">
+            <Text className="text-xs text-error font-semibold">
+              ⚠ マイナス在庫です。確認が必要です。
+            </Text>
+          </View>
+        )}
+
+        {item.isLow && !item.isNegative && (
+          <View className="mt-3 bg-warning/10 rounded p-2">
+            <Text className="text-xs text-warning font-semibold">
+              📢 発注推奨: 最低在庫以下です
+            </Text>
+          </View>
+        )}
       </View>
-
-      <View className="border-t border-border pt-3 mt-3">
-        <View className="flex-row justify-between mb-2">
-          <Text className="text-sm text-muted">単価</Text>
-          <Text className="text-sm font-semibold text-foreground">
-            ¥{item.part.unitPrice.toLocaleString()}
-          </Text>
-        </View>
-        <View className="flex-row justify-between mb-2">
-          <Text className="text-sm text-muted">現在在庫</Text>
-          <Text className={`text-sm font-bold ${
-            item.isNegative ? "text-error" : item.isLow ? "text-warning" : "text-success"
-          }`}>
-            {item.part.currentStock}個
-          </Text>
-        </View>
-        <View className="flex-row justify-between">
-          <Text className="text-sm text-muted">最低在庫</Text>
-          <Text className="text-sm font-semibold text-foreground">
-            {item.part.minStock}個
-          </Text>
-        </View>
-      </View>
-
-      {item.isNegative && (
-        <View className="mt-3 bg-error/10 rounded p-2">
-          <Text className="text-xs text-error font-semibold">
-            ⚠ マイナス在庫です。確認が必要です。
-          </Text>
-        </View>
-      )}
-
-      {item.isLow && !item.isNegative && (
-        <View className="mt-3 bg-warning/10 rounded p-2">
-          <Text className="text-xs text-warning font-semibold">
-            📢 発注推奨: 最低在庫以下です
-          </Text>
-        </View>
-      )}
-    </View>
+    </Pressable>
   );
 
   return (
@@ -172,6 +230,62 @@ export default function InventoryScreen() {
           className="bg-surface border border-border rounded-lg px-4 py-2 mb-4 text-foreground"
           placeholderTextColor="#999"
         />
+
+        {/* ソートボタン */}
+        <View className="flex-row gap-2 mb-4 flex-wrap">
+          <Pressable
+            onPress={() => setSortType("favorite")}
+            style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+            className={`px-3 py-2 rounded-full border ${
+              sortType === "favorite"
+                ? "bg-primary border-primary"
+                : "bg-surface border-border"
+            }`}
+          >
+            <Text className={sortType === "favorite" ? "text-white text-xs font-semibold" : "text-foreground text-xs"}>
+              ⭐ よく使う
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setSortType("name")}
+            style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+            className={`px-3 py-2 rounded-full border ${
+              sortType === "name"
+                ? "bg-primary border-primary"
+                : "bg-surface border-border"
+            }`}
+          >
+            <Text className={sortType === "name" ? "text-white text-xs font-semibold" : "text-foreground text-xs"}>
+              名前順
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setSortType("stock")}
+            style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+            className={`px-3 py-2 rounded-full border ${
+              sortType === "stock"
+                ? "bg-primary border-primary"
+                : "bg-surface border-border"
+            }`}
+          >
+            <Text className={sortType === "stock" ? "text-white text-xs font-semibold" : "text-foreground text-xs"}>
+              在庫数順
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setSortType("value")}
+            style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+            className={`px-3 py-2 rounded-full border ${
+              sortType === "value"
+                ? "bg-primary border-primary"
+                : "bg-surface border-border"
+            }`}
+          >
+            <Text className={sortType === "value" ? "text-white text-xs font-semibold" : "text-foreground text-xs"}>
+              金額順
+            </Text>
+          </Pressable>
+        </View>
 
         {/* 統計情報 */}
         <View className="flex-row gap-2 mb-4">
@@ -196,12 +310,12 @@ export default function InventoryScreen() {
         </View>
 
         {/* 在庫リスト */}
-        {filteredItems.length > 0 ? (
+        {sortedItems.length > 0 ? (
           <FlatList
-            data={filteredItems}
+            data={sortedItems}
             renderItem={renderInventoryItem}
             keyExtractor={(item) => item.part.id}
-            scrollEnabled={false}
+            scrollEnabled={true}
           />
         ) : (
           <View className="items-center justify-center py-8">

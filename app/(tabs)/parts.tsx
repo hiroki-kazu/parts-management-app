@@ -1,8 +1,10 @@
 /**
  * 部品マスタ管理画面
+ * 部品の追加・編集・削除機能
  */
 
 import React, { useEffect, useState, useCallback } from "react";
+import { useFocusEffect } from "expo-router";
 import {
   ScrollView,
   Text,
@@ -15,52 +17,55 @@ import {
   Switch,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
+import { useRouter } from "expo-router";
 import { getParts, addPart, updatePart, deletePart } from "@/lib/storage";
 import { Part } from "@/lib/types";
-import { cn } from "@/lib/utils";
 import * as Haptics from "expo-haptics";
 
 interface EditingPart extends Partial<Part> {
   id?: string;
-  name?: string;
-  partNumber?: string;
-  unitPrice?: number;
-  currentStock?: number;
-  minStock?: number;
-  allowDecimal?: boolean;
+  name: string;
+  partNumber: string;
+  unitPrice: number;
+  currentStock: number;
+  minStock: number;
+  allowDecimal: boolean;
+  isFavorite?: boolean;
+  displayOrder?: number;
 }
 
 export default function PartsScreen() {
+  const router = useRouter();
   const [parts, setParts] = useState<Part[]>([]);
-  const [isModalVisible, setIsModalVisible] = useState(false);
-  const [editingPart, setEditingPart] = useState<EditingPart>({});
   const [searchText, setSearchText] = useState("");
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [editingPart, setEditingPart] = useState<EditingPart>({
+    name: "",
+    partNumber: "",
+    unitPrice: 0,
+    currentStock: 0,
+    minStock: 0,
+    allowDecimal: false,
+    isFavorite: false,
+    displayOrder: 0,
+  });
 
-  // 初期ロード
-  useEffect(() => {
-    loadParts();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadParts();
+    }, [])
+  );
 
   const loadParts = async () => {
     try {
-      const data = await getParts();
-      setParts(data);
+      const loadedParts = await getParts();
+      setParts(loadedParts);
     } catch (error) {
       console.error("Error loading parts:", error);
     }
   };
 
-  const handleAddPart = () => {
-    setEditingPart({});
-    setIsModalVisible(true);
-  };
-
-  const handleEditPart = (part: Part) => {
-    setEditingPart(part);
-    setIsModalVisible(true);
-  };
-
-  const handleSavePart = async () => {
+  const handleSave = async () => {
     try {
       if (!editingPart.name || !editingPart.partNumber) {
         Alert.alert("エラー", "部品名と品番は必須です");
@@ -76,9 +81,12 @@ export default function PartsScreen() {
           currentStock: editingPart.currentStock || 0,
           minStock: editingPart.minStock || 0,
           allowDecimal: editingPart.allowDecimal || false,
+          isFavorite: editingPart.isFavorite || false,
+          displayOrder: editingPart.displayOrder || 0,
         });
       } else {
         // 追加
+        const maxOrder = parts.length > 0 ? Math.max(...parts.map(p => p.displayOrder || 0)) : 0;
         await addPart({
           name: editingPart.name,
           partNumber: editingPart.partNumber,
@@ -86,6 +94,8 @@ export default function PartsScreen() {
           currentStock: editingPart.currentStock || 0,
           minStock: editingPart.minStock || 0,
           allowDecimal: editingPart.allowDecimal || false,
+          isFavorite: false,
+          displayOrder: maxOrder + 1,
         });
       }
 
@@ -98,14 +108,14 @@ export default function PartsScreen() {
     }
   };
 
-  const handleDeletePart = (part: Part) => {
-    Alert.alert("削除確認", `「${part.name}」を削除してもよろしいですか？`, [
+  const handleDelete = async (id: string) => {
+    Alert.alert("削除確認", "この部品を削除しますか？", [
       { text: "キャンセル", onPress: () => {} },
       {
         text: "削除",
         onPress: async () => {
           try {
-            await deletePart(part.id);
+            await deletePart(id);
             await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             loadParts();
           } catch (error) {
@@ -117,56 +127,54 @@ export default function PartsScreen() {
     ]);
   };
 
+  const handleEdit = (part: Part) => {
+    setEditingPart(part);
+    setIsModalVisible(true);
+  };
+
+  const handleAdd = () => {
+    const maxOrder = parts.length > 0 ? Math.max(...parts.map(p => p.displayOrder || 0)) : 0;
+    setEditingPart({
+      name: "",
+      partNumber: "",
+      unitPrice: 0,
+      currentStock: 0,
+      minStock: 0,
+      allowDecimal: false,
+      isFavorite: false,
+      displayOrder: maxOrder + 1,
+    });
+    setIsModalVisible(true);
+  };
+
   const filteredParts = parts.filter(
-    (p) =>
-      p.name.includes(searchText) ||
-      p.partNumber.includes(searchText)
+    (part) =>
+      part.name.includes(searchText) || part.partNumber.includes(searchText)
   );
 
   const renderPartItem = ({ item }: { item: Part }) => (
-    <View className="bg-surface rounded-lg p-4 mb-3 border border-border">
-      <View className="flex-row justify-between items-start mb-2">
-        <View className="flex-1">
-          <Text className="text-lg font-semibold text-foreground">{item.name}</Text>
-          <Text className="text-sm text-muted">品番: {item.partNumber}</Text>
-        </View>
-        <View className="flex-row gap-2">
-          <Pressable
-            onPress={() => handleEditPart(item)}
-            className="bg-primary px-3 py-2 rounded"
-            style={({ pressed }) => [pressed && { opacity: 0.7 }]}
-          >
-            <Text className="text-white text-sm font-semibold">編集</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => handleDeletePart(item)}
-            className="bg-error px-3 py-2 rounded"
-            style={({ pressed }) => [pressed && { opacity: 0.7 }]}
-          >
-            <Text className="text-white text-sm font-semibold">削除</Text>
-          </Pressable>
-        </View>
+    <View className="bg-surface rounded-lg p-4 mb-3 border border-border flex-row justify-between items-center">
+      <View className="flex-1">
+        <Text className="text-lg font-semibold text-foreground">{item.name}</Text>
+        <Text className="text-sm text-muted">品番: {item.partNumber}</Text>
+        <Text className="text-sm text-muted">在庫: {item.currentStock}個</Text>
+        {item.isFavorite && (
+          <Text className="text-xs text-warning mt-1">★ よく使う部品</Text>
+        )}
       </View>
-
-      <View className="grid grid-cols-2 gap-2 mt-2">
-        <View>
-          <Text className="text-xs text-muted">単価</Text>
-          <Text className="text-sm font-semibold text-foreground">¥{item.unitPrice.toLocaleString()}</Text>
-        </View>
-        <View>
-          <Text className="text-xs text-muted">現在在庫</Text>
-          <Text className="text-sm font-semibold text-foreground">{item.currentStock}個</Text>
-        </View>
-        <View>
-          <Text className="text-xs text-muted">最低在庫</Text>
-          <Text className="text-sm font-semibold text-foreground">{item.minStock}個</Text>
-        </View>
-        <View>
-          <Text className="text-xs text-muted">小数使用</Text>
-          <Text className="text-sm font-semibold text-foreground">
-            {item.allowDecimal ? "可能" : "不可"}
-          </Text>
-        </View>
+      <View className="flex-row gap-2">
+        <Pressable
+          onPress={() => handleEdit(item)}
+          style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+        >
+          <Text className="text-2xl">✏️</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => handleDelete(item.id)}
+          style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+        >
+          <Text className="text-2xl">🗑️</Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -175,14 +183,18 @@ export default function PartsScreen() {
     <ScreenContainer className="p-4">
       <View className="flex-1">
         {/* ヘッダー */}
-        <View className="flex-row justify-between items-center mb-4">
-          <Text className="text-2xl font-bold text-foreground">部品マスタ</Text>
+        <View className="flex-row items-center justify-between mb-4">
+          <View className="flex-row items-center gap-2">
+            <Pressable onPress={() => router.back()} style={({ pressed }) => [pressed && { opacity: 0.7 }]}>
+              <Text className="text-2xl">←</Text>
+            </Pressable>
+            <Text className="text-2xl font-bold text-foreground">部品マスタ</Text>
+          </View>
           <Pressable
-            onPress={handleAddPart}
-            className="bg-primary px-4 py-2 rounded-full"
+            onPress={handleAdd}
             style={({ pressed }) => [pressed && { opacity: 0.7 }]}
           >
-            <Text className="text-white font-semibold">+ 追加</Text>
+            <Text className="text-2xl">➕</Text>
           </Pressable>
         </View>
 
@@ -201,7 +213,7 @@ export default function PartsScreen() {
             data={filteredParts}
             renderItem={renderPartItem}
             keyExtractor={(item) => item.id}
-            scrollEnabled={false}
+            scrollEnabled={true}
           />
         ) : (
           <View className="items-center justify-center py-8">
@@ -211,119 +223,144 @@ export default function PartsScreen() {
       </View>
 
       {/* 編集モーダル */}
-      <Modal
-        visible={isModalVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setIsModalVisible(false)}
-      >
-        <View className="flex-1 bg-black/50 justify-end">
-          <View className="bg-background rounded-t-2xl p-6 max-h-[90%]">
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <Text className="text-2xl font-bold text-foreground mb-4">
+      <Modal visible={isModalVisible} animationType="slide" transparent>
+        <ScreenContainer className="p-4">
+          <View className="flex-1">
+            <View className="flex-row items-center justify-between mb-4">
+              <Text className="text-2xl font-bold text-foreground">
                 {editingPart.id ? "部品編集" : "部品追加"}
               </Text>
+              <Pressable
+                onPress={() => setIsModalVisible(false)}
+                style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+              >
+                <Text className="text-2xl">✕</Text>
+              </Pressable>
+            </View>
 
+            <ScrollView>
               {/* 部品名 */}
-              <View className="mb-4">
-                <Text className="text-sm font-semibold text-foreground mb-2">部品名 *</Text>
-                <TextInput
-                  placeholder="部品名を入力"
-                  value={editingPart.name || ""}
-                  onChangeText={(text) => setEditingPart({ ...editingPart, name: text })}
-                  className="bg-surface border border-border rounded-lg px-4 py-3 text-foreground"
-                  placeholderTextColor="#999"
-                />
-              </View>
+              <Text className="text-sm font-semibold text-foreground mb-2">部品名 *</Text>
+              <TextInput
+                placeholder="部品名"
+                value={editingPart.name}
+                onChangeText={(text) =>
+                  setEditingPart((prev) => ({ ...prev, name: text }))
+                }
+                className="bg-surface border border-border rounded-lg px-4 py-3 mb-4 text-foreground"
+                placeholderTextColor="#999"
+              />
 
               {/* 品番 */}
-              <View className="mb-4">
-                <Text className="text-sm font-semibold text-foreground mb-2">品番 *</Text>
-                <TextInput
-                  placeholder="品番を入力"
-                  value={editingPart.partNumber || ""}
-                  onChangeText={(text) => setEditingPart({ ...editingPart, partNumber: text })}
-                  className="bg-surface border border-border rounded-lg px-4 py-3 text-foreground"
-                  placeholderTextColor="#999"
-                />
-              </View>
+              <Text className="text-sm font-semibold text-foreground mb-2">品番 *</Text>
+              <TextInput
+                placeholder="品番"
+                value={editingPart.partNumber}
+                onChangeText={(text) =>
+                  setEditingPart((prev) => ({ ...prev, partNumber: text }))
+                }
+                className="bg-surface border border-border rounded-lg px-4 py-3 mb-4 text-foreground"
+                placeholderTextColor="#999"
+              />
 
               {/* 単価 */}
-              <View className="mb-4">
-                <Text className="text-sm font-semibold text-foreground mb-2">単価（円）</Text>
-                <TextInput
-                  placeholder="0"
-                  value={String(editingPart.unitPrice || "")}
-                  onChangeText={(text) =>
-                    setEditingPart({ ...editingPart, unitPrice: parseInt(text) || 0 })
-                  }
-                  keyboardType="numeric"
-                  className="bg-surface border border-border rounded-lg px-4 py-3 text-foreground"
-                  placeholderTextColor="#999"
-                />
-              </View>
+              <Text className="text-sm font-semibold text-foreground mb-2">単価（円）</Text>
+              <TextInput
+                placeholder="0"
+                value={String(editingPart.unitPrice || 0)}
+                onChangeText={(text) =>
+                  setEditingPart((prev) => ({
+                    ...prev,
+                    unitPrice: parseInt(text) || 0,
+                  }))
+                }
+                keyboardType="number-pad"
+                className="bg-surface border border-border rounded-lg px-4 py-3 mb-4 text-foreground"
+                placeholderTextColor="#999"
+              />
 
               {/* 現在在庫 */}
-              <View className="mb-4">
-                <Text className="text-sm font-semibold text-foreground mb-2">現在在庫数</Text>
-                <TextInput
-                  placeholder="0"
-                  value={String(editingPart.currentStock || "")}
-                  onChangeText={(text) =>
-                    setEditingPart({ ...editingPart, currentStock: parseInt(text) || 0 })
-                  }
-                  keyboardType="numeric"
-                  className="bg-surface border border-border rounded-lg px-4 py-3 text-foreground"
-                  placeholderTextColor="#999"
-                />
-              </View>
+              <Text className="text-sm font-semibold text-foreground mb-2">現在在庫</Text>
+              <TextInput
+                placeholder="0"
+                value={String(editingPart.currentStock || 0)}
+                onChangeText={(text) =>
+                  setEditingPart((prev) => ({
+                    ...prev,
+                    currentStock: parseInt(text) || 0,
+                  }))
+                }
+                keyboardType="number-pad"
+                className="bg-surface border border-border rounded-lg px-4 py-3 mb-4 text-foreground"
+                placeholderTextColor="#999"
+              />
 
               {/* 最低在庫 */}
-              <View className="mb-4">
-                <Text className="text-sm font-semibold text-foreground mb-2">最低在庫数</Text>
-                <TextInput
-                  placeholder="0"
-                  value={String(editingPart.minStock || "")}
-                  onChangeText={(text) =>
-                    setEditingPart({ ...editingPart, minStock: parseInt(text) || 0 })
-                  }
-                  keyboardType="numeric"
-                  className="bg-surface border border-border rounded-lg px-4 py-3 text-foreground"
-                  placeholderTextColor="#999"
-                />
-              </View>
+              <Text className="text-sm font-semibold text-foreground mb-2">最低在庫</Text>
+              <TextInput
+                placeholder="0"
+                value={String(editingPart.minStock || 0)}
+                onChangeText={(text) =>
+                  setEditingPart((prev) => ({
+                    ...prev,
+                    minStock: parseInt(text) || 0,
+                  }))
+                }
+                keyboardType="number-pad"
+                className="bg-surface border border-border rounded-lg px-4 py-3 mb-4 text-foreground"
+                placeholderTextColor="#999"
+              />
 
-              {/* 小数使用フラグ */}
-              <View className="flex-row justify-between items-center mb-6 bg-surface rounded-lg p-4">
-                <Text className="text-sm font-semibold text-foreground">小数使用可能</Text>
+              {/* 小数対応フラグ */}
+              <View className="flex-row items-center justify-between mb-4">
+                <Text className="text-sm font-semibold text-foreground">小数対応</Text>
                 <Switch
                   value={editingPart.allowDecimal || false}
                   onValueChange={(value) =>
-                    setEditingPart({ ...editingPart, allowDecimal: value })
+                    setEditingPart((prev) => ({ ...prev, allowDecimal: value }))
                   }
                 />
               </View>
 
-              {/* ボタン */}
-              <View className="flex-row gap-3">
-                <Pressable
-                  onPress={() => setIsModalVisible(false)}
-                  className="flex-1 bg-border rounded-lg py-3"
-                  style={({ pressed }) => [pressed && { opacity: 0.7 }]}
-                >
-                  <Text className="text-center font-semibold text-foreground">キャンセル</Text>
-                </Pressable>
-                <Pressable
-                  onPress={handleSavePart}
-                  className="flex-1 bg-primary rounded-lg py-3"
-                  style={({ pressed }) => [pressed && { opacity: 0.7 }]}
-                >
-                  <Text className="text-center font-semibold text-white">保存</Text>
-                </Pressable>
+              {/* よく使う部品フラグ */}
+              <View className="flex-row items-center justify-between mb-4">
+                <Text className="text-sm font-semibold text-foreground">よく使う部品</Text>
+                <Switch
+                  value={editingPart.isFavorite || false}
+                  onValueChange={(value) =>
+                    setEditingPart((prev) => ({ ...prev, isFavorite: value }))
+                  }
+                />
               </View>
+
+              {/* 表示順序 */}
+              <Text className="text-sm font-semibold text-foreground mb-2">表示順序</Text>
+              <TextInput
+                placeholder="0"
+                value={String(editingPart.displayOrder || 0)}
+                onChangeText={(text) =>
+                  setEditingPart((prev) => ({
+                    ...prev,
+                    displayOrder: parseInt(text) || 0,
+                  }))
+                }
+                keyboardType="number-pad"
+                className="bg-surface border border-border rounded-lg px-4 py-3 mb-6 text-foreground"
+                placeholderTextColor="#999"
+              />
+
+              {/* 保存ボタン */}
+              <Pressable
+                onPress={handleSave}
+                style={({ pressed }) => ([
+                  { backgroundColor: pressed ? '#0a7ea4dd' : '#0a7ea4', borderRadius: 8, paddingVertical: 16, alignItems: 'center' },
+                ])}
+              >
+                <Text className="text-white font-bold text-lg">保存</Text>
+              </Pressable>
             </ScrollView>
           </View>
-        </View>
+        </ScreenContainer>
       </Modal>
     </ScreenContainer>
   );
