@@ -49,8 +49,11 @@ const validateQuantityInput = (text: string, allowDecimal: boolean): string => {
     sanitized = sanitized.replace(/\./g, "");
   }
 
-  // 注釈：小数精度制限を削除し、任意の小数点位数を許可
-  // (元々の制限ロジックが小数点入力をブロックしていたため)
+  // 小数精度を制限（小数第1位まで）
+  if (allowDecimal && sanitized.includes(".")) {
+    const [integer, decimal] = sanitized.split(".");
+    sanitized = integer + "." + decimal.substring(0, 1);
+  }
 
   return sanitized;
 };
@@ -259,22 +262,9 @@ export default function OutboundScreen() {
 
         {/* 日付 */}
         <View className="mb-4">
-          <Text className="text-sm font-semibold text-foreground mb-2">日付 (YYYY-MM-DD)</Text>
-          <View className="flex-row gap-2">
-            <TextInput
-              placeholder="YYYY-MM-DD"
-              value={form.date}
-              onChangeText={(text) => setForm({ ...form, date: text })}
-              className="flex-1 bg-surface border border-border rounded-lg px-4 py-3 text-foreground text-base"
-              placeholderTextColor="#999"
-            />
-            <Pressable
-              onPress={() => setForm({ ...form, date: getTodayDate() })}
-              style={({ pressed }) => [pressed && { opacity: 0.7 }]}
-              className="bg-primary rounded-lg px-4 py-3 items-center justify-center"
-            >
-              <Text className="text-white font-semibold text-sm">today</Text>
-            </Pressable>
+          <Text className="text-sm font-semibold text-foreground mb-2">日付</Text>
+          <View className="bg-surface border border-border rounded-lg px-4 py-3">
+            <Text className="text-foreground">{form.date}</Text>
           </View>
         </View>
 
@@ -393,9 +383,7 @@ export default function OutboundScreen() {
             <TextInput
               value={quantityInputText}
               onChangeText={handleQuantityTextChange}
-              keyboardType="decimal-pad"
-              editable={true}
-              multiline={false}
+              keyboardType="numbers-and-punctuation"
               className="flex-1 bg-surface border border-border rounded-lg px-4 py-3 text-center text-foreground text-base"
               placeholderTextColor="#999"
             />

@@ -13,8 +13,6 @@ export interface Part {
   currentStock: number; // 現在在庫数
   minStock: number; // 最低在庫数
   allowDecimal: boolean; // 小数使用フラグ
-  isFavorite: boolean; // よく使う部品フラグ
-  displayOrder: number; // 表示順序（ソート用）
   createdAt: string; // 作成日時（ISO 8601）
   updatedAt: string; // 更新日時（ISO 8601）
 }

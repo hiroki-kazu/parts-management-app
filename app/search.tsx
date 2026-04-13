@@ -131,7 +131,7 @@ export default function SearchScreen() {
                   data={records}
                   renderItem={renderRecordItem}
                   keyExtractor={(item) => item.id}
-                  scrollEnabled={true}
+                  scrollEnabled={false}
                 />
               </>
             ) : (
