@@ -49,11 +49,8 @@ const validateQuantityInput = (text: string, allowDecimal: boolean): string => {
     sanitized = sanitized.replace(/\./g, "");
   }
 
-  // 小数精度を制限（小数第1位まで）
-  if (allowDecimal && sanitized.includes(".")) {
-    const [integer, decimal] = sanitized.split(".");
-    sanitized = integer + "." + decimal.substring(0, 1);
-  }
+  // 注釈：小数精度制限を削除し、任意の小数点位数を許可
+  // (元々の制限ロジックが小数点入力をブロックしていたため)
 
   return sanitized;
 };

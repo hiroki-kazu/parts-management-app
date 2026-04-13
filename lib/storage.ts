@@ -62,7 +62,7 @@ export async function initializeDatabase(): Promise<void> {
         unitPrice: 2500,
         currentStock: 15,
         minStock: 5,
-        allowDecimal: false,
+        allowDecimal: true,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       },
