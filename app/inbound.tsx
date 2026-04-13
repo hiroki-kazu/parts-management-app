@@ -243,7 +243,7 @@ export default function InboundScreen() {
             <TextInput
               value={String(form.quantity)}
               onChangeText={(text) => setForm({ ...form, quantity: parseFloat(text) || 0 })}
-              keyboardType="decimal-pad"
+              keyboardType="numbers-and-punctuation"
               className="flex-1 bg-surface border border-border rounded-lg px-4 py-3 text-center text-foreground text-base"
               placeholderTextColor="#999"
             />

@@ -157,3 +157,8 @@
 - [x] 顧客名の手入力対応（ナンバー検索二会編集可能に）
 - [x] 数量の小数点入力対応（部品の小数フラグに応じて許可）
 - [x] 顧客名とナンバーの独立管理（異なる顧客名を入力可能に）
+
+
+### 小数点入力修正（追加）
+- [x] 出庫入力画面：keyboardType="numbers-and-punctuation"に変更
+- [x] 入庫入力画面：keyboardType="numbers-and-punctuation"に変更

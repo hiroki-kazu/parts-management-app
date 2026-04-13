@@ -334,7 +334,7 @@ export default function OutboundScreen() {
                 const num = parseFloat(text) || 0;
                 setForm({ ...form, quantity: num });
               }}
-              keyboardType={selectedPart?.allowDecimal ? "decimal-pad" : "number-pad"}
+              keyboardType="numbers-and-punctuation"
               className="flex-1 bg-surface border border-border rounded-lg px-4 py-3 text-center text-foreground text-base"
               placeholderTextColor="#999"
             />
