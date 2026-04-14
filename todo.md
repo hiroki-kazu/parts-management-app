@@ -201,3 +201,8 @@
 - [x] 現在在庫数フィールドで小数点入力を許可
 - [x] 小数第1位までの入力に制限
 - [x] 部品マスタ編集モーダルのキーボード型を修正
+
+### 編集モーダルのキーボード対応
+- [x] ScrollViewにkeyboardShouldPersistTapsを追加
+- [x] keyboardDismissModeをinteractiveに設定
+- [x] contentContainerStyleでpaddingBottomを追加

@@ -238,7 +238,12 @@ export default function PartsScreen() {
       >
         <View className="flex-1 bg-black/50 justify-end">
           <View className="bg-background rounded-t-2xl p-6 max-h-[90%]">
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView 
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="interactive"
+              contentContainerStyle={{ paddingBottom: 20 }}
+            >
               <Text className="text-2xl font-bold text-foreground mb-4">
                 {editingPart.id ? "部品編集" : "部品追加"}
               </Text>
