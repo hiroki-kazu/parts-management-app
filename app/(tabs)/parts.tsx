@@ -288,10 +288,15 @@ export default function PartsScreen() {
                 <TextInput
                   placeholder="0"
                   value={String(editingPart.currentStock || "")}
-                  onChangeText={(text) =>
-                    setEditingPart({ ...editingPart, currentStock: parseInt(text) || 0 })
-                  }
-                  keyboardType="numeric"
+                  onChangeText={(text) => {
+                    // 小数点の重複入力防止
+                    const sanitized = text.replace(/(\d*\.\d{1})\..*/, '$1');
+                    // 小数第1位までに制限
+                    const match = sanitized.match(/^\d*\.?\d{0,1}/);
+                    const limited = match ? match[0] : sanitized;
+                    setEditingPart({ ...editingPart, currentStock: parseFloat(limited) || 0 });
+                  }}
+                  keyboardType="decimal-pad"
                   className="bg-surface border border-border rounded-lg px-4 py-3 text-foreground"
                   placeholderTextColor="#999"
                 />
