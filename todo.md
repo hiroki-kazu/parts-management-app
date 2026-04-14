@@ -217,3 +217,10 @@
 ### 画面スクロール対応
 - [x] 在庫確認画面のFlatListをスクロール可能に
 - [x] 部品マスタ画面のFlatListをスクロール可能に
+
+### Android CSV出力修正
+- [x] FileSystem.documentDirectoryをcacheDirectoryに変更
+- [x] Share.shareのurlにfile://プロトコルを追加
+- [x] 出库履歴CSV出力修正
+- [x] 入庫履歴CSV出力修正
+- [x] 月末在庫集計CSV出力修正

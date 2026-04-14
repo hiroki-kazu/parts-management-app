@@ -87,7 +87,7 @@ export default function MonthendScreen() {
       setIsProcessing(true);
       const csv = await exportOutboundRecordsAsCSV();
       const fileName = `outbound_${currentMonth}.csv`;
-      const filePath = `${FileSystem.documentDirectory}${fileName}`;
+      const filePath = `${FileSystem.cacheDirectory}${fileName}`;
 
       await FileSystem.writeAsStringAsync(filePath, csv, {
         encoding: FileSystem.EncodingType.UTF8,
@@ -95,7 +95,7 @@ export default function MonthendScreen() {
 
       // ファイル共有
       await Share.share({
-        url: filePath,
+        url: `file://${filePath}`,
         title: "出庫履歴CSV",
         message: `${currentMonth}の出庫履歴をエクスポートしました`,
       });
@@ -114,7 +114,7 @@ export default function MonthendScreen() {
       setIsProcessing(true);
       const csv = await exportInboundRecordsAsCSV();
       const fileName = `inbound_${currentMonth}.csv`;
-      const filePath = `${FileSystem.documentDirectory}${fileName}`;
+      const filePath = `${FileSystem.cacheDirectory}${fileName}`;
 
       await FileSystem.writeAsStringAsync(filePath, csv, {
         encoding: FileSystem.EncodingType.UTF8,
@@ -122,7 +122,7 @@ export default function MonthendScreen() {
 
       // ファイル共有
       await Share.share({
-        url: filePath,
+        url: `file://${filePath}`,
         title: "入庫履歴CSV",
         message: `${currentMonth}の入庫履歴をエクスポートしました`,
       });
@@ -141,7 +141,7 @@ export default function MonthendScreen() {
       setIsProcessing(true);
       const csv = await getMonthlyInventorySummary(currentMonth);
       const fileName = `inventory_summary_${currentMonth}.csv`;
-      const filePath = `${FileSystem.documentDirectory}${fileName}`;
+      const filePath = `${FileSystem.cacheDirectory}${fileName}`;
 
       await FileSystem.writeAsStringAsync(filePath, csv, {
         encoding: FileSystem.EncodingType.UTF8,
@@ -149,7 +149,7 @@ export default function MonthendScreen() {
 
       // ファイル共有
       await Share.share({
-        url: filePath,
+        url: `file://${filePath}`,
         title: "月末在庫集計CSV",
         message: `${currentMonth}の月末在庫集計をエクスポートしました`,
       });
