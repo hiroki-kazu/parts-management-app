@@ -241,7 +241,8 @@ export default function PartsScreen() {
             data={filteredParts}
             renderItem={renderPartItem}
             keyExtractor={(item) => item.id}
-            scrollEnabled={false}
+            scrollEnabled={true}
+            nestedScrollEnabled={true}
           />
         ) : (
           <View className="items-center justify-center py-8">

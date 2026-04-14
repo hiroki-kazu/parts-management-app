@@ -201,7 +201,8 @@ export default function InventoryScreen() {
             data={filteredItems}
             renderItem={renderInventoryItem}
             keyExtractor={(item) => item.part.id}
-            scrollEnabled={false}
+            scrollEnabled={true}
+            nestedScrollEnabled={true}
           />
         ) : (
           <View className="items-center justify-center py-8">
