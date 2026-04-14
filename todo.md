@@ -224,3 +224,9 @@
 - [x] 出库履歴CSV出力修正
 - [x] 入庫履歴CSV出力修正
 - [x] 月末在庫集計CSV出力修正
+
+### 日付ピッカー実装
+- [x] @react-native-community/datetimepickerをインストール
+- [x] 出庫入力画面に日付ピッカーを実装
+- [x] 入庫入力画面に日付ピッカーを実装
+- [x] iOS/Android別の表示方式に対応

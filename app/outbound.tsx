@@ -13,9 +13,11 @@ import {
   Modal,
   FlatList,
   Alert,
+  Platform,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useRouter } from "expo-router";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import {
   getParts,
   getTodayDate,
@@ -86,6 +88,8 @@ export default function OutboundScreen() {
   const [isPartModalVisible, setIsPartModalVisible] = useState(false);
   const [partSearchText, setPartSearchText] = useState("");
   const [quantityInputText, setQuantityInputText] = useState("1");
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(new Date());
 
   useEffect(() => {
     loadParts();
@@ -229,6 +233,17 @@ export default function OutboundScreen() {
     }
   };
 
+  const handleDateChange = (event: any, date?: Date) => {
+    if (Platform.OS === "android") {
+      setShowDatePicker(false);
+    }
+    if (date) {
+      const formattedDate = date.toISOString().split("T")[0];
+      setForm({ ...form, date: formattedDate });
+      setSelectedDate(date);
+    }
+  };
+
   const filteredParts = parts.filter(
     (p) =>
       p.name.includes(partSearchText) ||
@@ -263,10 +278,29 @@ export default function OutboundScreen() {
         {/* 日付 */}
         <View className="mb-4">
           <Text className="text-sm font-semibold text-foreground mb-2">日付</Text>
-          <View className="bg-surface border border-border rounded-lg px-4 py-3">
-            <Text className="text-foreground">{form.date}</Text>
-          </View>
+          <Pressable
+            onPress={() => {
+              setShowDatePicker(true);
+              const [year, month, day] = form.date.split("-");
+              setSelectedDate(new Date(parseInt(year), parseInt(month) - 1, parseInt(day)));
+            }}
+            style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+          >
+            <View className="bg-surface border border-border rounded-lg px-4 py-3">
+              <Text className="text-foreground">{form.date}</Text>
+            </View>
+          </Pressable>
         </View>
+
+        {showDatePicker && Platform.OS !== "web" && (
+          <DateTimePicker
+            value={selectedDate}
+            mode="date"
+            display={Platform.OS === "ios" ? "spinner" : "default"}
+            onChange={handleDateChange}
+            textColor="#000"
+          />
+        )}
 
         {/* 伝票番号 */}
         <View className="mb-4">
