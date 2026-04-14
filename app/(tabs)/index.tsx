@@ -8,6 +8,7 @@ import { ScrollView, Text, View, Pressable } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
+import Constants from "expo-constants";
 
 interface MenuItem {
   id: string;
@@ -111,8 +112,11 @@ export default function HomeScreen() {
           ))}
 
           {/* フッター情報 */}
-          <View className="mt-auto pt-4 items-center">
-            <Text className="text-xs text-muted">タップして操作を開始</Text>
+          <View className="mt-auto pt-6 items-center border-t border-border">
+            <Text className="text-xs text-muted mb-2">タップして操作を開始</Text>
+            <Text className="text-xs text-muted">
+              v{Constants.expoConfig?.version || "1.0.0"}
+            </Text>
           </View>
         </View>
       </ScrollView>

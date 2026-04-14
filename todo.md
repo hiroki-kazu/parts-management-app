@@ -206,3 +206,10 @@
 - [x] ScrollViewにkeyboardShouldPersistTapsを追加
 - [x] keyboardDismissModeをinteractiveに設定
 - [x] contentContainerStyleでpaddingBottomを追加
+- [x] KeyboardAvoidingViewでモーダルをラップ
+- [x] 現在在庫数フィールドの文字列state化
+- [x] 最低在庫数フィールドの文字列state化
+
+### TOP画面にバージョン情報表示
+- [x] Constantsからバージョン情報を取得
+- [x] TOP画面下部にバージョン表示を追加

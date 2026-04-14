@@ -13,7 +13,10 @@ import {
   Modal,
   Alert,
   Switch,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenContainer } from "@/components/screen-container";
 import { getParts, addPart, updatePart, deletePart, importPartsFromCSV, exportAllDataAsJSON, importAllDataFromJSON } from "@/lib/storage";
 import { Part } from "@/lib/types";
@@ -30,10 +33,20 @@ interface EditingPart extends Partial<Part> {
   allowDecimal?: boolean;
 }
 
+interface EditingPartText {
+  currentStockText: string;
+  minStockText: string;
+}
+
 export default function PartsScreen() {
+  const insets = useSafeAreaInsets();
   const [parts, setParts] = useState<Part[]>([]);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingPart, setEditingPart] = useState<EditingPart>({});
+  const [editingPartText, setEditingPartText] = useState<EditingPartText>({
+    currentStockText: "",
+    minStockText: "",
+  });
   const [searchText, setSearchText] = useState("");
 
   // 初期ロード
@@ -52,11 +65,19 @@ export default function PartsScreen() {
 
   const handleAddPart = () => {
     setEditingPart({});
+    setEditingPartText({
+      currentStockText: "",
+      minStockText: "",
+    });
     setIsModalVisible(true);
   };
 
   const handleEditPart = (part: Part) => {
     setEditingPart(part);
+    setEditingPartText({
+      currentStockText: String(part.currentStock || ""),
+      minStockText: String(part.minStock || ""),
+    });
     setIsModalVisible(true);
   };
 
@@ -73,8 +94,8 @@ export default function PartsScreen() {
           name: editingPart.name,
           partNumber: editingPart.partNumber,
           unitPrice: editingPart.unitPrice || 0,
-          currentStock: editingPart.currentStock || 0,
-          minStock: editingPart.minStock || 0,
+          currentStock: parseFloat(editingPartText.currentStockText) || 0,
+          minStock: parseFloat(editingPartText.minStockText) || 0,
           allowDecimal: editingPart.allowDecimal || false,
         });
       } else {
@@ -83,8 +104,8 @@ export default function PartsScreen() {
           name: editingPart.name,
           partNumber: editingPart.partNumber,
           unitPrice: editingPart.unitPrice || 0,
-          currentStock: editingPart.currentStock || 0,
-          minStock: editingPart.minStock || 0,
+          currentStock: parseFloat(editingPartText.currentStockText) || 0,
+          minStock: parseFloat(editingPartText.minStockText) || 0,
           allowDecimal: editingPart.allowDecimal || false,
         });
       }
@@ -236,14 +257,19 @@ export default function PartsScreen() {
         transparent
         onRequestClose={() => setIsModalVisible(false)}
       >
-        <View className="flex-1 bg-black/50 justify-end">
-          <View className="bg-background rounded-t-2xl p-6 max-h-[90%]">
-            <ScrollView 
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="interactive"
-              contentContainerStyle={{ paddingBottom: 20 }}
-            >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+          className="flex-1 bg-black/50 justify-end"
+        >
+          <View className="flex-1 bg-black/50 justify-end">
+            <View className="bg-background rounded-t-2xl p-6 max-h-[90%]">
+              <ScrollView 
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="interactive"
+                contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
+              >
               <Text className="text-2xl font-bold text-foreground mb-4">
                 {editingPart.id ? "部品編集" : "部品追加"}
               </Text>
@@ -292,16 +318,19 @@ export default function PartsScreen() {
                 <Text className="text-sm font-semibold text-foreground mb-2">現在在庫数</Text>
                 <TextInput
                   placeholder="0"
-                  value={String(editingPart.currentStock || "")}
+                  value={editingPartText.currentStockText}
                   onChangeText={(text) => {
-                    // 小数点の重複入力防止
-                    const sanitized = text.replace(/(\d*\.\d{1})\..*/, '$1');
-                    // 小数第1位までに制限
-                    const match = sanitized.match(/^\d*\.?\d{0,1}/);
-                    const limited = match ? match[0] : sanitized;
-                    setEditingPart({ ...editingPart, currentStock: parseFloat(limited) || 0 });
+                    // 数字と小数点のみを許可
+                    const filtered = text.replace(/[^0-9.]/g, '');
+                    // 小数点の重複を防止
+                    const parts = filtered.split('.');
+                    let result = parts[0];
+                    if (parts.length > 1) {
+                      result += '.' + parts.slice(1).join('').substring(0, 1);
+                    }
+                    setEditingPartText({ ...editingPartText, currentStockText: result });
                   }}
-                  keyboardType="decimal-pad"
+                  keyboardType={Platform.OS === "ios" ? "numbers-and-punctuation" : "decimal-pad"}
                   className="bg-surface border border-border rounded-lg px-4 py-3 text-foreground"
                   placeholderTextColor="#999"
                 />
@@ -312,16 +341,19 @@ export default function PartsScreen() {
                 <Text className="text-sm font-semibold text-foreground mb-2">最低在庫数</Text>
                 <TextInput
                   placeholder="0"
-                  value={String(editingPart.minStock || "")}
+                  value={editingPartText.minStockText}
                   onChangeText={(text) => {
-                    // 小数点の重複入力防止
-                    const sanitized = text.replace(/(\d*\.\d{1})\..*/, '$1');
-                    // 小数第1位までに制限
-                    const match = sanitized.match(/^\d*\.?\d{0,1}/);
-                    const limited = match ? match[0] : sanitized;
-                    setEditingPart({ ...editingPart, minStock: parseFloat(limited) || 0 });
+                    // 数字と小数点のみを許可
+                    const filtered = text.replace(/[^0-9.]/g, '');
+                    // 小数点の重複を防止
+                    const parts = filtered.split('.');
+                    let result = parts[0];
+                    if (parts.length > 1) {
+                      result += '.' + parts.slice(1).join('').substring(0, 1);
+                    }
+                    setEditingPartText({ ...editingPartText, minStockText: result });
                   }}
-                  keyboardType="decimal-pad"
+                  keyboardType={Platform.OS === "ios" ? "numbers-and-punctuation" : "decimal-pad"}
                   className="bg-surface border border-border rounded-lg px-4 py-3 text-foreground"
                   placeholderTextColor="#999"
                 />
@@ -355,9 +387,10 @@ export default function PartsScreen() {
                   <Text className="text-center font-semibold text-white">保存</Text>
                 </Pressable>
               </View>
-            </ScrollView>
+              </ScrollView>
+            </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </ScreenContainer>
   );
