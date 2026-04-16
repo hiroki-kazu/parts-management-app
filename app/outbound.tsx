@@ -14,6 +14,7 @@ import {
   FlatList,
   Alert,
   Platform,
+  KeyboardAvoidingView,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useRouter } from "expo-router";
@@ -265,9 +266,13 @@ export default function OutboundScreen() {
   const selectedPart = parts.find((p) => p.id === form.partId);
 
   return (
-    <ScreenContainer className="p-4">
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* ヘッダー */}
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      className="flex-1"
+    >
+      <ScreenContainer className="p-4">
+        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          {/* ヘッダー */}
         <View className="flex-row items-center gap-2 mb-4">
           <Pressable onPress={() => router.back()} style={({ pressed }) => [pressed && { opacity: 0.7 }]}>
             <Text className="text-2xl">←</Text>
@@ -445,43 +450,65 @@ export default function OutboundScreen() {
         >
           <Text className="text-center text-white font-bold text-lg">保存</Text>
         </Pressable>
-      </ScrollView>
+        </ScrollView>
 
-      {/* 部品選択モーダル */}
-      <Modal
-        visible={isPartModalVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setIsPartModalVisible(false)}
-      >
-        <View className="flex-1 bg-black/50 justify-end">
-          <View className="bg-background rounded-t-2xl max-h-[80%]">
-            <View className="p-4 border-b border-border">
-              <Text className="text-lg font-bold text-foreground mb-3">部品を選択</Text>
-              <TextInput
-                placeholder="部品名または品番で検索"
-                value={partSearchText}
-                onChangeText={setPartSearchText}
-                className="bg-surface border border-border rounded-lg px-4 py-2 text-foreground"
-                placeholderTextColor="#999"
+        {/* 部品選択モーダル */}
+        <Modal
+          visible={isPartModalVisible}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setIsPartModalVisible(false)}
+        >
+          <View className="flex-1 bg-black/50 justify-end">
+            <View className="bg-background rounded-t-2xl max-h-[80%]">
+              <View className="p-4 border-b border-border">
+                <Text className="text-lg font-bold text-foreground mb-3">部品を選択</Text>
+                <TextInput
+                  placeholder="部品名または品番で検索"
+                  value={partSearchText}
+                  onChangeText={setPartSearchText}
+                  className="bg-surface border border-border rounded-lg px-4 py-2 text-foreground"
+                  placeholderTextColor="#999"
+                />
+                {partSearchText === "" && frequentParts.length > 0 && (
+                  <View className="mt-3">
+                    <Text className="text-xs font-semibold text-muted mb-2">⭐ よく使う部品</Text>
+                    <View className="flex-row flex-wrap gap-2">
+                      {frequentParts.map((part) => (
+                        <Pressable
+                          key={part.id}
+                          onPress={() => {
+                            setForm({ ...form, partId: part.id, partName: part.name });
+                            setIsPartModalVisible(false);
+                            setPartSearchText("");
+                          }}
+                          style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+                          className="bg-primary rounded-lg px-3 py-1"
+                        >
+                          <Text className="text-xs text-white font-semibold">{part.name}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+                )}
+              </View>
+              <FlatList
+                data={filteredParts}
+                renderItem={renderPartOption}
+                keyExtractor={(item) => item.id}
+                scrollEnabled={true}
               />
+              <Pressable
+                onPress={() => setIsPartModalVisible(false)}
+                className="bg-surface border-t border-border p-4"
+                style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+              >
+                <Text className="text-center text-foreground font-semibold">閉じる</Text>
+              </Pressable>
             </View>
-            <FlatList
-              data={filteredParts}
-              renderItem={renderPartOption}
-              keyExtractor={(item) => item.id}
-              scrollEnabled={true}
-            />
-            <Pressable
-              onPress={() => setIsPartModalVisible(false)}
-              className="bg-surface border-t border-border p-4"
-              style={({ pressed }) => [pressed && { opacity: 0.7 }]}
-            >
-              <Text className="text-center text-foreground font-semibold">閉じる</Text>
-            </Pressable>
           </View>
-        </View>
-      </Modal>
-    </ScreenContainer>
+        </Modal>
+      </ScreenContainer>
+    </KeyboardAvoidingView>
   );
 }
