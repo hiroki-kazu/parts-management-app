@@ -237,8 +237,12 @@ export default function MonthendScreen() {
             <Pressable
               onPress={handleExportInventorySummary}
               disabled={isProcessing}
-              className="bg-purple-500 rounded-lg py-3"
-              style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+              style={({ pressed }) => [{
+                backgroundColor: '#a855f7',
+                borderRadius: 8,
+                paddingVertical: 12,
+                opacity: isProcessing ? 0.5 : (pressed ? 0.7 : 1),
+              }]}
             >
               {isProcessing ? (
                 <ActivityIndicator color="white" />
@@ -257,8 +261,12 @@ export default function MonthendScreen() {
             <Pressable
               onPress={handleExportOutbound}
               disabled={isProcessing}
-              className="bg-blue-500 rounded-lg py-3"
-              style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+              style={({ pressed }) => [{
+                backgroundColor: '#3b82f6',
+                borderRadius: 8,
+                paddingVertical: 12,
+                opacity: isProcessing ? 0.5 : (pressed ? 0.7 : 1),
+              }]}
             >
               {isProcessing ? (
                 <ActivityIndicator color="white" />
@@ -277,8 +285,12 @@ export default function MonthendScreen() {
             <Pressable
               onPress={handleExportInbound}
               disabled={isProcessing}
-              className="bg-green-500 rounded-lg py-3"
-              style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+              style={({ pressed }) => [{
+                backgroundColor: '#22c55e',
+                borderRadius: 8,
+                paddingVertical: 12,
+                opacity: isProcessing ? 0.5 : (pressed ? 0.7 : 1),
+              }]}
             >
               {isProcessing ? (
                 <ActivityIndicator color="white" />
