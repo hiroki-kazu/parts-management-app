@@ -338,16 +338,19 @@ export default function PartsScreen() {
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 100}
           className="flex-1"
         >
           <View className="flex-1 bg-black/50 justify-end">
-            <View className="bg-background rounded-t-2xl max-h-[90%]">
+            <View className="bg-background rounded-t-2xl flex-1">
               <ScrollView
                 contentContainerStyle={{
-                  paddingBottom: insets.bottom + 40,
+                  paddingBottom: insets.bottom + 100,
+                  paddingTop: 20,
                 }}
                 keyboardShouldPersistTaps="handled"
-                keyboardDismissMode="interactive"
+                keyboardDismissMode="on-drag"
+                showsVerticalScrollIndicator={true}
               >
                 <View className="p-4">
                   <Text className="text-2xl font-bold text-foreground mb-4">
