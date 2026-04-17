@@ -12,6 +12,7 @@ import {
   Alert,
   ActivityIndicator,
   Share,
+  Platform,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useRouter } from "expo-router";
@@ -24,11 +25,38 @@ import {
 } from "@/lib/storage";
 import * as Haptics from "expo-haptics";
 import * as FileSystem from "expo-file-system/legacy";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 export default function MonthendScreen() {
   const router = useRouter();
   const [isProcessing, setIsProcessing] = useState(false);
   const currentMonth = getCurrentMonth();
+  const [startDate, setStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const [endDate, setEndDate] = useState(new Date());
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString("ja-JP", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+  };
+
+  const handleStartDateChange = (event: any, selectedDate?: Date) => {
+    setShowStartDatePicker(false);
+    if (selectedDate) {
+      setStartDate(selectedDate);
+    }
+  };
+
+  const handleEndDateChange = (event: any, selectedDate?: Date) => {
+    setShowEndDatePicker(false);
+    if (selectedDate) {
+      setEndDate(selectedDate);
+    }
+  };
 
   const handleMonthlyClosing = async () => {
     Alert.alert(
@@ -87,19 +115,13 @@ export default function MonthendScreen() {
       setIsProcessing(true);
       const csv = await exportOutboundRecordsAsCSV();
       const fileName = `outbound_${currentMonth}.csv`;
-      const filePath = `${FileSystem.cacheDirectory}${fileName}`;
+      const filePath = `${FileSystem.documentDirectory}${fileName}`;
 
       await FileSystem.writeAsStringAsync(filePath, csv, {
         encoding: FileSystem.EncodingType.UTF8,
       });
 
-      // ファイル共有
-      await Share.share({
-        url: `file://${filePath}`,
-        title: "出庫履歴CSV",
-        message: `${currentMonth}の出庫履歴をエクスポートしました`,
-      });
-
+      Alert.alert("成功", `${fileName}がダウンロードフォルダに保存されました`);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       console.error("Error exporting outbound records:", error);
@@ -114,19 +136,13 @@ export default function MonthendScreen() {
       setIsProcessing(true);
       const csv = await exportInboundRecordsAsCSV();
       const fileName = `inbound_${currentMonth}.csv`;
-      const filePath = `${FileSystem.cacheDirectory}${fileName}`;
+      const filePath = `${FileSystem.documentDirectory}${fileName}`;
 
       await FileSystem.writeAsStringAsync(filePath, csv, {
         encoding: FileSystem.EncodingType.UTF8,
       });
 
-      // ファイル共有
-      await Share.share({
-        url: `file://${filePath}`,
-        title: "入庫履歴CSV",
-        message: `${currentMonth}の入庫履歴をエクスポートしました`,
-      });
-
+      Alert.alert("成功", `${fileName}がダウンロードフォルダに保存されました`);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       console.error("Error exporting inbound records:", error);
@@ -141,19 +157,13 @@ export default function MonthendScreen() {
       setIsProcessing(true);
       const csv = await getMonthlyInventorySummary(currentMonth);
       const fileName = `inventory_summary_${currentMonth}.csv`;
-      const filePath = `${FileSystem.cacheDirectory}${fileName}`;
+      const filePath = `${FileSystem.documentDirectory}${fileName}`;
 
       await FileSystem.writeAsStringAsync(filePath, csv, {
         encoding: FileSystem.EncodingType.UTF8,
       });
 
-      // ファイル共有
-      await Share.share({
-        url: `file://${filePath}`,
-        title: "月末在庫集計CSV",
-        message: `${currentMonth}の月末在庫集計をエクスポートしました`,
-      });
-
+      Alert.alert("成功", `${fileName}がダウンロードフォルダに保存されました`);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       console.error("Error exporting inventory summary:", error);
@@ -224,9 +234,51 @@ export default function MonthendScreen() {
           </View>
         </View>
 
+        {/* 期間指定 */}
+        <View className="mb-6">
+          <Text className="text-sm font-semibold text-foreground mb-2">3. 期間指定</Text>
+          <View className="bg-surface rounded-lg p-4 mb-3 border border-border">
+            <Text className="text-sm text-muted mb-3">集計対象期間を指定してください</Text>
+            
+            {/* 開始日 */}
+            <View className="mb-4">
+              <Text className="text-xs text-muted mb-1">開始日</Text>
+              <Pressable
+                onPress={() => setShowStartDatePicker(true)}
+                style={({ pressed }) => [{
+                  backgroundColor: pressed ? '#e5e7eb' : '#f5f5f5',
+                  borderRadius: 8,
+                  padding: 12,
+                  borderWidth: 1,
+                  borderColor: '#d1d5db',
+                }]}
+              >
+                <Text className="text-foreground font-semibold">{formatDate(startDate)}</Text>
+              </Pressable>
+            </View>
+            
+            {/* 終了日 */}
+            <View className="mb-3">
+              <Text className="text-xs text-muted mb-1">終了日</Text>
+              <Pressable
+                onPress={() => setShowEndDatePicker(true)}
+                style={({ pressed }) => [{
+                  backgroundColor: pressed ? '#e5e7eb' : '#f5f5f5',
+                  borderRadius: 8,
+                  padding: 12,
+                  borderWidth: 1,
+                  borderColor: '#d1d5db',
+                }]}
+              >
+                <Text className="text-foreground font-semibold">{formatDate(endDate)}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+
         {/* CSV出力 */}
         <View className="mb-6">
-          <Text className="text-sm font-semibold text-foreground mb-2">3. CSV出力</Text>
+          <Text className="text-sm font-semibold text-foreground mb-2">4. CSV出力</Text>
 
           {/* 月末在庫集計 */}
           <View className="bg-surface rounded-lg p-4 mb-3 border border-border">
@@ -311,6 +363,70 @@ export default function MonthendScreen() {
           </Text>
         </View>
       </ScrollView>
+
+      {/* 開始日ピッカー */}
+      {showStartDatePicker && Platform.OS === 'ios' && (
+        <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#fff' }}>
+          <DateTimePicker
+            value={startDate}
+            mode="date"
+            display="spinner"
+            onChange={(event, date) => {
+              if (date) setStartDate(date);
+            }}
+          />
+          <Pressable
+            onPress={() => setShowStartDatePicker(false)}
+            style={{ backgroundColor: '#007AFF', padding: 12, alignItems: 'center' }}
+          >
+            <Text style={{ color: '#fff', fontWeight: 'bold' }}>OK</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {showStartDatePicker && Platform.OS === 'android' && (
+        <DateTimePicker
+          value={startDate}
+          mode="date"
+          display="default"
+          onChange={(event, date) => {
+            setShowStartDatePicker(false);
+            if (date) setStartDate(date);
+          }}
+        />
+      )}
+
+      {/* 終了日ピッカー */}
+      {showEndDatePicker && Platform.OS === 'ios' && (
+        <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#fff' }}>
+          <DateTimePicker
+            value={endDate}
+            mode="date"
+            display="spinner"
+            onChange={(event, date) => {
+              if (date) setEndDate(date);
+            }}
+          />
+          <Pressable
+            onPress={() => setShowEndDatePicker(false)}
+            style={{ backgroundColor: '#007AFF', padding: 12, alignItems: 'center' }}
+          >
+            <Text style={{ color: '#fff', fontWeight: 'bold' }}>OK</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {showEndDatePicker && Platform.OS === 'android' && (
+        <DateTimePicker
+          value={endDate}
+          mode="date"
+          display="default"
+          onChange={(event, date) => {
+            setShowEndDatePicker(false);
+            if (date) setEndDate(date);
+          }}
+        />
+      )}
     </ScreenContainer>
   );
 }
