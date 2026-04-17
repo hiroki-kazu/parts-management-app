@@ -25,6 +25,7 @@ import {
   getOutboundRecordsByVehicleNumber,
   getCustomerByVehicleNumber,
   getOutboundRecords,
+  deleteOutboundRecord,
 } from "@/lib/storage";
 import { OutboundRecord } from "@/lib/types";
 
@@ -42,6 +43,7 @@ export default function SearchScreen() {
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [editingRecord, setEditingRecord] = useState<OutboundRecord | null>(null);
   const [editQuantity, setEditQuantity] = useState("");
+  const [selectedRecordIds, setSelectedRecordIds] = useState<Set<string>>(new Set());
 
   const handleSearch = async () => {
     try {
@@ -94,6 +96,40 @@ export default function SearchScreen() {
     setIsEditModalVisible(true);
   };
 
+  const handleToggleRecordSelection = (recordId: string) => {
+    const newSelected = new Set(selectedRecordIds);
+    if (newSelected.has(recordId)) {
+      newSelected.delete(recordId);
+    } else {
+      newSelected.add(recordId);
+    }
+    setSelectedRecordIds(newSelected);
+  };
+
+  const handleDeleteRecord = (recordId: string) => {
+    Alert.alert(
+      "削除確認",
+      "この履歴を削除してもよろしいですか？",
+      [
+        { text: "キャンセル", onPress: () => {}, style: "cancel" },
+        {
+          text: "削除",
+          onPress: async () => {
+            try {
+              await deleteOutboundRecord(recordId);
+              Alert.alert("成功", "履歴を削除しました");
+              handleSearch();
+            } catch (error) {
+              console.error("Error deleting record:", error);
+              Alert.alert("エラー", "削除に失敗しました");
+            }
+          },
+          style: "destructive",
+        },
+      ]
+    );
+  };
+
   const handleSaveEdit = async () => {
     try {
       if (!editingRecord) return;
@@ -128,6 +164,13 @@ export default function SearchScreen() {
             style={({ pressed }) => [pressed && { opacity: 0.7 }]}
           >
             <Text className="text-white text-sm font-semibold">編集</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => handleDeleteRecord(item.id)}
+            className="bg-error px-3 py-1 rounded"
+            style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+          >
+            <Text className="text-white text-sm font-semibold">削除</Text>
           </Pressable>
         </View>
       </View>
@@ -258,6 +301,11 @@ export default function SearchScreen() {
                     <Text className="text-sm font-semibold text-foreground">
                       使用履歴（{records.length}件）
                     </Text>
+                    {selectedRecordIds.size > 0 && (
+                      <Text className="text-sm text-primary font-semibold">
+                        {selectedRecordIds.size}件選択
+                      </Text>
+                    )}
                   </View>
                   <FlatList
                     data={records}

@@ -731,3 +731,31 @@ export async function importAllDataFromJSON(jsonContent: string): Promise<{ succ
     };
   }
 }
+
+/**
+ * 出庫記録を削除（IDで指定）
+ */
+export async function deleteOutboundRecord(recordId: string): Promise<void> {
+  try {
+    const records = await getOutboundRecords();
+    const filtered = records.filter((r) => r.id !== recordId);
+    await AsyncStorage.setItem(STORAGE_KEYS.OUTBOUND_RECORDS, JSON.stringify(filtered));
+  } catch (error) {
+    console.error("Error deleting outbound record:", error);
+    throw error;
+  }
+}
+
+/**
+ * 複数の出庫記録を削除
+ */
+export async function deleteOutboundRecords(recordIds: string[]): Promise<void> {
+  try {
+    const records = await getOutboundRecords();
+    const filtered = records.filter((r) => !recordIds.includes(r.id));
+    await AsyncStorage.setItem(STORAGE_KEYS.OUTBOUND_RECORDS, JSON.stringify(filtered));
+  } catch (error) {
+    console.error("Error deleting outbound records:", error);
+    throw error;
+  }
+}
