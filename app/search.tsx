@@ -24,6 +24,7 @@ import { useRouter } from "expo-router";
 import {
   getOutboundRecordsByVehicleNumber,
   getCustomerByVehicleNumber,
+  getOutboundRecords,
 } from "@/lib/storage";
 import { OutboundRecord } from "@/lib/types";
 
@@ -44,13 +45,27 @@ export default function SearchScreen() {
 
   const handleSearch = async () => {
     try {
-      if (!vehicleNumber || vehicleNumber.length !== 4) {
-        Alert.alert("エラー", "ナンバー（下4桁）を入力してください");
+      // ナンバーと期間の両方が空の場合はエラー
+      if (!vehicleNumber && !startDate && !endDate) {
+        Alert.alert("エラー", "ナンバーまたは期間を指定してください");
         return;
       }
 
-      const foundRecords = await getOutboundRecordsByVehicleNumber(vehicleNumber);
-      const customer = await getCustomerByVehicleNumber(vehicleNumber);
+      let foundRecords: OutboundRecord[] = [];
+      let customer: any = null;
+
+      // ナンバーで検索
+      if (vehicleNumber && vehicleNumber.length === 4) {
+        foundRecords = await getOutboundRecordsByVehicleNumber(vehicleNumber);
+        customer = await getCustomerByVehicleNumber(vehicleNumber);
+      } else if (vehicleNumber && vehicleNumber.length !== 4) {
+        Alert.alert("エラー", "ナンバーは下4桁で入力してください");
+        return;
+      } else {
+        // ナンバーが空の場合は全記録を取得
+        const { getOutboundRecords } = await import("@/lib/storage");
+        foundRecords = await getOutboundRecords();
+      }
 
       // 日付範囲でフィルタリング
       const filteredRecords = foundRecords.filter((record) => {
@@ -59,7 +74,13 @@ export default function SearchScreen() {
       });
 
       setRecords(filteredRecords);
-      setCustomerName(customer?.name || "未登録");
+      if (vehicleNumber && customer) {
+        setCustomerName(customer.name || "未登録");
+      } else if (vehicleNumber) {
+        setCustomerName("未登録");
+      } else {
+        setCustomerName("");
+      }
       setIsSearched(true);
     } catch (error) {
       console.error("Error searching records:", error);
@@ -213,12 +234,22 @@ export default function SearchScreen() {
           {isSearched && (
             <>
               {/* 顧客情報 */}
-              <View className="bg-primary/10 rounded-lg p-4 mb-4 border border-primary">
-                <Text className="text-sm text-muted mb-1">ナンバー</Text>
-                <Text className="text-lg font-bold text-foreground mb-2">{vehicleNumber}</Text>
-                <Text className="text-sm text-muted mb-1">顧客名</Text>
-                <Text className="text-lg font-semibold text-primary">{customerName}</Text>
-              </View>
+              {vehicleNumber && (
+                <View className="bg-primary/10 rounded-lg p-4 mb-4 border border-primary">
+                  <Text className="text-sm text-muted mb-1">ナンバー</Text>
+                  <Text className="text-lg font-bold text-foreground mb-2">{vehicleNumber}</Text>
+                  <Text className="text-sm text-muted mb-1">顧客名</Text>
+                  <Text className="text-lg font-semibold text-primary">{customerName}</Text>
+                </View>
+              )}
+              {!vehicleNumber && (
+                <View className="bg-blue-100 rounded-lg p-4 mb-4 border border-blue-300">
+                  <Text className="text-sm text-muted mb-1">検索条件</Text>
+                  <Text className="text-lg font-semibold text-foreground">
+                    {startDate.toLocaleDateString()} ～ {endDate.toLocaleDateString()}
+                  </Text>
+                </View>
+              )}
 
               {/* 履歴リスト */}
               {records.length > 0 ? (
@@ -245,7 +276,7 @@ export default function SearchScreen() {
 
           {!isSearched && (
             <View className="items-center justify-center py-12">
-              <Text className="text-lg text-muted">ナンバーを入力して検索</Text>
+              <Text className="text-lg text-muted">ナンバーまたは期間を指定して検索</Text>
             </View>
           )}
         </View>
