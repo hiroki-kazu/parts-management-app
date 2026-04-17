@@ -253,7 +253,7 @@ export default function MonthendScreen() {
                   borderColor: '#d1d5db',
                 }]}
               >
-                <Text className="text-foreground font-semibold">{formatDate(startDate)}</Text>
+                <Text style={{ color: '#000000', fontWeight: '600' }}>{formatDate(startDate)}</Text>
               </Pressable>
             </View>
             
@@ -270,7 +270,7 @@ export default function MonthendScreen() {
                   borderColor: '#d1d5db',
                 }]}
               >
-                <Text className="text-foreground font-semibold">{formatDate(endDate)}</Text>
+                <Text style={{ color: '#000000', fontWeight: '600' }}>{formatDate(endDate)}</Text>
               </Pressable>
             </View>
           </View>
