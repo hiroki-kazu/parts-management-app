@@ -26,6 +26,7 @@ import {
   getCustomerByVehicleNumber,
   getFrequentParts,
   getPartsByVehicleNumber,
+  getOutboundRecordByVoucherNumber,
 } from "@/lib/storage";
 import { Part, Customer } from "@/lib/types";
 import * as Haptics from "expo-haptics";
@@ -97,6 +98,12 @@ export default function OutboundScreen() {
   }, []);
 
   useEffect(() => {
+    if (form.voucherNumber.length > 0) {
+      loadRecordByVoucherNumber();
+    }
+  }, [form.voucherNumber]);
+
+  useEffect(() => {
     if (form.vehicleNumber.length === 4) {
       loadVehicleHistory();
       loadCustomerName();
@@ -133,6 +140,22 @@ export default function OutboundScreen() {
       }
     } catch (error) {
       console.error("Error loading customer:", error);
+    }
+  };
+
+  const loadRecordByVoucherNumber = async () => {
+    try {
+      const record = await getOutboundRecordByVoucherNumber(form.voucherNumber);
+      if (record) {
+        // 伝票番号が同じ場合、ナンバーと顧客名を自動入力
+        setForm((prev) => ({
+          ...prev,
+          vehicleNumber: record.vehicleNumber,
+          customerName: record.customerName,
+        }));
+      }
+    } catch (error) {
+      console.error("Error loading record by voucher number:", error);
     }
   };
 

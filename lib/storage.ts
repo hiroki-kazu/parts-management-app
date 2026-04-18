@@ -759,3 +759,21 @@ export async function deleteOutboundRecords(recordIds: string[]): Promise<void> 
     throw error;
   }
 }
+
+/**
+ * 伝票番号検索：出庫履歴から最新の1件を取得
+ */
+export async function getOutboundRecordByVoucherNumber(voucherNumber: string): Promise<OutboundRecord | null> {
+  try {
+    const records = await getOutboundRecords();
+    // 伝票番号が同じ最新の記録を取得
+    const matchingRecords = records
+      .filter((r) => r.voucherNumber === voucherNumber)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    
+    return matchingRecords.length > 0 ? matchingRecords[0] : null;
+  } catch (error) {
+    console.error("Error getting outbound record by voucher number:", error);
+    return null;
+  }
+}
