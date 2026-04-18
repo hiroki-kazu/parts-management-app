@@ -3,7 +3,7 @@
  * 月末在庫確定・翌月繰越・CSV出力
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   ScrollView,
   Text,
@@ -26,6 +26,7 @@ import {
 import * as Haptics from "expo-haptics";
 import * as FileSystem from "expo-file-system/legacy";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import * as MediaLibrary from "expo-media-library";
 
 export default function MonthendScreen() {
   const router = useRouter();
@@ -35,6 +36,13 @@ export default function MonthendScreen() {
   const [endDate, setEndDate] = useState(new Date());
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+
+  // メディアライブラリのパーミッション要求
+  useEffect(() => {
+    if (Platform.OS !== 'web') {
+      MediaLibrary.requestPermissionsAsync();
+    }
+  }, []);
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString("ja-JP", {
@@ -110,18 +118,52 @@ export default function MonthendScreen() {
     );
   };
 
+  const exportCSVFile = async (csv: string, fileName: string) => {
+    try {
+      const filePath = `${FileSystem.cacheDirectory}${fileName}`;
+
+      // ファイルをキャッシュディレクトリに保存
+      await FileSystem.writeAsStringAsync(filePath, csv, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      // プラットフォーム別の処理
+      if (Platform.OS === 'web') {
+        // Web環境ではブラウザのダウンロード機能を使用
+        const link = document.createElement('a');
+        link.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+        link.download = fileName;
+        link.click();
+      } else if (Platform.OS === 'ios' || Platform.OS === 'android') {
+        // iOS/Androidではメディアライブラリに保存
+        try {
+          await MediaLibrary.saveToLibraryAsync(filePath);
+        } catch (e) {
+          console.log('Media library save failed, using Share instead');
+          // フォールバック：Share APIを使用
+          await Share.share({
+            url: filePath,
+            title: fileName,
+            message: `${fileName}をダウンロードしています...`,
+          });
+        }
+      }
+
+      return true;
+    } catch (error) {
+      console.error("Error exporting CSV:", error);
+      throw error;
+    }
+  };
+
   const handleExportOutbound = async () => {
     try {
       setIsProcessing(true);
       const csv = await exportOutboundRecordsAsCSV();
       const fileName = `outbound_${currentMonth}.csv`;
-      const filePath = `${FileSystem.documentDirectory}${fileName}`;
 
-      await FileSystem.writeAsStringAsync(filePath, csv, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
-
-      Alert.alert("成功", `${fileName}がダウンロードフォルダに保存されました`);
+      await exportCSVFile(csv, fileName);
+      Alert.alert("成功", `${fileName}をダウンロードしました`);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       console.error("Error exporting outbound records:", error);
@@ -136,13 +178,9 @@ export default function MonthendScreen() {
       setIsProcessing(true);
       const csv = await exportInboundRecordsAsCSV();
       const fileName = `inbound_${currentMonth}.csv`;
-      const filePath = `${FileSystem.documentDirectory}${fileName}`;
 
-      await FileSystem.writeAsStringAsync(filePath, csv, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
-
-      Alert.alert("成功", `${fileName}がダウンロードフォルダに保存されました`);
+      await exportCSVFile(csv, fileName);
+      Alert.alert("成功", `${fileName}をダウンロードしました`);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       console.error("Error exporting inbound records:", error);
@@ -157,13 +195,9 @@ export default function MonthendScreen() {
       setIsProcessing(true);
       const csv = await getMonthlyInventorySummary(currentMonth);
       const fileName = `inventory_summary_${currentMonth}.csv`;
-      const filePath = `${FileSystem.documentDirectory}${fileName}`;
 
-      await FileSystem.writeAsStringAsync(filePath, csv, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
-
-      Alert.alert("成功", `${fileName}がダウンロードフォルダに保存されました`);
+      await exportCSVFile(csv, fileName);
+      Alert.alert("成功", `${fileName}をダウンロードしました`);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       console.error("Error exporting inventory summary:", error);
@@ -314,7 +348,7 @@ export default function MonthendScreen() {
               onPress={handleExportOutbound}
               disabled={isProcessing}
               style={({ pressed }) => [{
-                backgroundColor: '#3b82f6',
+                backgroundColor: '#0ea5e9',
                 borderRadius: 8,
                 paddingVertical: 12,
                 opacity: isProcessing ? 0.5 : (pressed ? 0.7 : 1),
@@ -329,7 +363,7 @@ export default function MonthendScreen() {
           </View>
 
           {/* 入庫履歴 */}
-          <View className="bg-surface rounded-lg p-4 border border-border">
+          <View className="bg-surface rounded-lg p-4 mb-3 border border-border">
             <Text className="text-sm font-semibold text-foreground mb-2">入庫履歴</Text>
             <Text className="text-xs text-muted mb-3">
               形式: 日付,伝票番号,仕入先,部品名,数量
@@ -338,7 +372,7 @@ export default function MonthendScreen() {
               onPress={handleExportInbound}
               disabled={isProcessing}
               style={({ pressed }) => [{
-                backgroundColor: '#22c55e',
+                backgroundColor: '#10b981',
                 borderRadius: 8,
                 paddingVertical: 12,
                 opacity: isProcessing ? 0.5 : (pressed ? 0.7 : 1),
@@ -352,16 +386,6 @@ export default function MonthendScreen() {
             </Pressable>
           </View>
         </View>
-
-        {/* 注意事項 */}
-        <View className="bg-warning/10 rounded-lg p-4 border border-warning">
-          <Text className="text-sm font-semibold text-warning mb-2">⚠ 注意事項</Text>
-          <Text className="text-xs text-muted leading-relaxed">
-            • 月末確定後、翌月の処理を開始してください{"\n"}
-            • CSV出力は複数回実行可能です{"\n"}
-            • データは自動的にバックアップされます
-          </Text>
-        </View>
       </ScrollView>
 
       {/* 開始日ピッカー */}
@@ -371,28 +395,16 @@ export default function MonthendScreen() {
             value={startDate}
             mode="date"
             display="spinner"
-            onChange={(event, date) => {
-              if (date) setStartDate(date);
-            }}
+            onChange={handleStartDateChange}
           />
-          <Pressable
-            onPress={() => setShowStartDatePicker(false)}
-            style={{ backgroundColor: '#007AFF', padding: 12, alignItems: 'center' }}
-          >
-            <Text style={{ color: '#fff', fontWeight: 'bold' }}>OK</Text>
-          </Pressable>
         </View>
       )}
-
-      {showStartDatePicker && Platform.OS === 'android' && (
+      {showStartDatePicker && Platform.OS !== 'ios' && (
         <DateTimePicker
           value={startDate}
           mode="date"
           display="default"
-          onChange={(event, date) => {
-            setShowStartDatePicker(false);
-            if (date) setStartDate(date);
-          }}
+          onChange={handleStartDateChange}
         />
       )}
 
@@ -403,28 +415,16 @@ export default function MonthendScreen() {
             value={endDate}
             mode="date"
             display="spinner"
-            onChange={(event, date) => {
-              if (date) setEndDate(date);
-            }}
+            onChange={handleEndDateChange}
           />
-          <Pressable
-            onPress={() => setShowEndDatePicker(false)}
-            style={{ backgroundColor: '#007AFF', padding: 12, alignItems: 'center' }}
-          >
-            <Text style={{ color: '#fff', fontWeight: 'bold' }}>OK</Text>
-          </Pressable>
         </View>
       )}
-
-      {showEndDatePicker && Platform.OS === 'android' && (
+      {showEndDatePicker && Platform.OS !== 'ios' && (
         <DateTimePicker
           value={endDate}
           mode="date"
           display="default"
-          onChange={(event, date) => {
-            setShowEndDatePicker(false);
-            if (date) setEndDate(date);
-          }}
+          onChange={handleEndDateChange}
         />
       )}
     </ScreenContainer>
