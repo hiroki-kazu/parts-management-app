@@ -12,10 +12,12 @@ import {
   Pressable,
   TextInput,
   FlatList,
+  Alert,
+  Modal,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useRouter } from "expo-router";
-import { getParts } from "@/lib/storage";
+import { getParts, updatePart } from "@/lib/storage";
 import { Part, InventoryStatus } from "@/lib/types";
 
 interface InventoryItem {
@@ -29,6 +31,8 @@ export default function InventoryScreen() {
   const router = useRouter();
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
   const [searchText, setSearchText] = useState("");
+  const [editingPartId, setEditingPartId] = useState<string | null>(null);
+  const [editingStock, setEditingStock] = useState("");
 
   useFocusEffect(
     useCallback(() => {
@@ -89,6 +93,26 @@ export default function InventoryScreen() {
         return "警告";
       default:
         return "不明";
+    }
+  };
+
+  const handleEditStock = async (partId: string, currentStock: number) => {
+    setEditingPartId(partId);
+    setEditingStock(currentStock.toString());
+  };
+
+  const handleSaveStock = async () => {
+    if (!editingPartId || !editingStock) return;
+    
+    try {
+      const newStock = parseFloat(editingStock);
+      await updatePart(editingPartId, { currentStock: newStock });
+      setEditingPartId(null);
+      setEditingStock("");
+      await loadInventory();
+      Alert.alert("成功", "在庫数を更新しました");
+    } catch (error) {
+      Alert.alert("エラー", "在庫数の更新に失敗しました");
     }
   };
 
@@ -153,10 +177,20 @@ export default function InventoryScreen() {
           </Text>
         </View>
       )}
+
+      {/* 修正ボタン */}
+      <Pressable 
+        onPress={() => handleEditStock(item.part.id, item.part.currentStock)}
+        style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+        className="mt-3 bg-primary rounded-lg py-2 px-4"
+      >
+        <Text className="text-white text-center font-semibold">在庫数を修正</Text>
+      </Pressable>
     </View>
   );
 
   return (
+    <>
     <ScreenContainer className="p-4">
       <View className="flex-1">
         {/* ヘッダー */}
@@ -214,5 +248,47 @@ export default function InventoryScreen() {
         )}
       </View>
     </ScreenContainer>
+
+    {/* 在庫修正モーダル */}
+    <Modal
+      visible={editingPartId !== null}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setEditingPartId(null)}
+    >
+      <View className="flex-1 bg-black/50 justify-center items-center p-4">
+        <View className="bg-background rounded-lg p-6 w-full max-w-sm">
+          <Text className="text-lg font-bold text-foreground mb-4">在庫数を修正</Text>
+          
+          <TextInput
+            placeholder="新しい在庫数を入力"
+            value={editingStock}
+            onChangeText={setEditingStock}
+            keyboardType="decimal-pad"
+            className="bg-surface border border-border rounded-lg px-4 py-3 mb-4 text-foreground"
+            placeholderTextColor="#999"
+          />
+          
+          <View className="flex-row gap-3">
+            <Pressable
+              onPress={() => setEditingPartId(null)}
+              style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+              className="flex-1 bg-muted rounded-lg py-3"
+            >
+              <Text className="text-center font-semibold text-foreground">キャンセル</Text>
+            </Pressable>
+            
+            <Pressable
+              onPress={handleSaveStock}
+              style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+              className="flex-1 bg-primary rounded-lg py-3"
+            >
+              <Text className="text-center font-semibold text-white">保存</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+    </>
   );
 }
