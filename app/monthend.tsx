@@ -27,16 +27,8 @@ import * as Haptics from "expo-haptics";
 import * as FileSystem from "expo-file-system/legacy";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as MediaLibrary from "expo-media-library";
-
-// Web環境ではZIPライブラリを使用しない
-let RNZipArchive: any = null;
-if (Platform.OS !== 'web') {
-  try {
-    RNZipArchive = require('react-native-zip-archive');
-  } catch (e) {
-    console.log('ZIP archive not available');
-  }
-}
+import JSZip from "jszip";
+import { Buffer } from "buffer";
 
 export default function MonthendScreen() {
   const router = useRouter();
@@ -248,12 +240,6 @@ export default function MonthendScreen() {
         return;
       }
       
-      if (!RNZipArchive) {
-        Alert.alert("エラー", "ZIP機能が利用できません");
-        setIsProcessing(false);
-        return;
-      }
-      
       // 3つのCSVデータを取得
       const outboundCsv = await exportOutboundRecordsAsCSV();
       const inboundCsv = await exportInboundRecordsAsCSV();
@@ -297,8 +283,20 @@ export default function MonthendScreen() {
         zipPath = `${FileSystem.cacheDirectory}${zipFileName}`;
       }
       
-      // ZIPファイルを作成
-      await RNZipArchive.zip(tempDir, zipPath);
+      // JSZipを使用してZIPファイルを作成
+      const zip = new JSZip();
+      zip.file(`outbound_${currentMonth}.csv`, outboundCsv);
+      zip.file(`inbound_${currentMonth}.csv`, inboundCsv);
+      zip.file(`inventory_summary_${currentMonth}.csv`, inventoryCsv);
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      
+      if (Platform.OS === 'android' || Platform.OS === 'ios') {
+        const zipBuffer = await zipBlob.arrayBuffer();
+        const zipBase64 = Buffer.from(zipBuffer).toString('base64');
+        await FileSystem.writeAsStringAsync(zipPath, zipBase64, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+      }
       
       // iOSの場合、メディアライブラリに保存
       if (Platform.OS === 'ios') {
