@@ -261,7 +261,7 @@ export default function PartsScreen() {
       </View>
       <View className="flex-row justify-between text-sm">
         <Text className="text-muted">単価: ¥{item.unitPrice}</Text>
-        <Text className="text-muted">現在在庫: {item.currentStock}</Text>
+        <Text className="text-muted">現在在庫: {item.allowDecimal ? Math.round(item.currentStock * 10) / 10 : Math.round(item.currentStock)}</Text>
         <Text className="text-muted">最低在庫: {item.minStock}</Text>
         <Text className="text-muted">
           小数点: {item.allowDecimal ? "可能" : "不可"}

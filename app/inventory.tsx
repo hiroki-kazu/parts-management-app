@@ -124,7 +124,10 @@ export default function InventoryScreen() {
           <Text className={`text-sm font-bold ${
             item.isNegative ? "text-error" : item.isLow ? "text-warning" : "text-success"
           }`}>
-            {item.part.currentStock}個
+            {item.part.allowDecimal ? 
+              Math.round(item.part.currentStock * 10) / 10 : 
+              Math.round(item.part.currentStock)
+            }個
           </Text>
         </View>
         <View className="flex-row justify-between">

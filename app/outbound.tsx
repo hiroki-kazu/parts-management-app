@@ -3,7 +3,7 @@
  * 部品使用時の入力フロー
  */
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   ScrollView,
   Text,
@@ -92,6 +92,8 @@ export default function OutboundScreen() {
   const [quantityInputText, setQuantityInputText] = useState("1");
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const scrollViewRef = useRef<ScrollView>(null);
+  const quantityInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     loadParts();
@@ -169,6 +171,13 @@ export default function OutboundScreen() {
     setQuantityInputText(part.allowDecimal ? "0.1" : "1");
     setIsPartModalVisible(false);
     setPartSearchText("");
+    
+    // 部品選択後に数量入力フィールドにフォーカスを移動
+    setTimeout(() => {
+      quantityInputRef.current?.focus();
+      // スクロールして数量入力フィールドを表示
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 300);
   };
 
   const handleQuantityChange = (delta: number) => {
@@ -294,7 +303,7 @@ export default function OutboundScreen() {
       className="flex-1"
     >
       <ScreenContainer className="p-4">
-        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView ref={scrollViewRef} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           {/* ヘッダー */}
         <View className="flex-row items-center gap-2 mb-4">
           <Pressable onPress={() => router.back()} style={({ pressed }) => [pressed && { opacity: 0.7 }]}>
@@ -443,6 +452,7 @@ export default function OutboundScreen() {
               <Text className="text-lg font-bold text-foreground">−</Text>
             </Pressable>
             <TextInput
+              ref={quantityInputRef}
               value={quantityInputText}
               onChangeText={handleQuantityTextChange}
               keyboardType="numbers-and-punctuation"
