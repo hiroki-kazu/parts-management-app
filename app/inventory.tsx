@@ -17,7 +17,7 @@ import {
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useRouter } from "expo-router";
-import { getParts, updatePart } from "@/lib/storage";
+import { getParts, updatePart, addPart, deletePart } from "@/lib/storage";
 import { Part, InventoryStatus } from "@/lib/types";
 
 interface InventoryItem {
@@ -27,12 +27,22 @@ interface InventoryItem {
   isNegative: boolean;
 }
 
+type ModalType = "edit-stock" | "edit-min-stock" | "add-part" | null;
+
 export default function InventoryScreen() {
   const router = useRouter();
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
   const [searchText, setSearchText] = useState("");
+  const [modalType, setModalType] = useState<ModalType>(null);
   const [editingPartId, setEditingPartId] = useState<string | null>(null);
-  const [editingStock, setEditingStock] = useState("");
+  const [editingValue, setEditingValue] = useState("");
+
+  // 新規部品追加用
+  const [newPartName, setNewPartName] = useState("");
+  const [newPartNumber, setNewPartNumber] = useState("");
+  const [newUnitPrice, setNewUnitPrice] = useState("");
+  const [newMinStock, setNewMinStock] = useState("");
+  const [newAllowDecimal, setNewAllowDecimal] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -96,23 +106,90 @@ export default function InventoryScreen() {
     }
   };
 
-  const handleEditStock = async (partId: string, currentStock: number) => {
+  const handleEditStock = (partId: string, currentStock: number) => {
     setEditingPartId(partId);
-    setEditingStock(currentStock.toString());
+    setEditingValue(currentStock.toString());
+    setModalType("edit-stock");
   };
 
-  const handleSaveStock = async () => {
-    if (!editingPartId || !editingStock) return;
+  const handleEditMinStock = (partId: string, minStock: number) => {
+    setEditingPartId(partId);
+    setEditingValue(minStock.toString());
+    setModalType("edit-min-stock");
+  };
+
+  const handleSaveValue = async () => {
+    if (!editingPartId || !editingValue) return;
     
     try {
-      const newStock = parseFloat(editingStock);
-      await updatePart(editingPartId, { currentStock: newStock });
+      const newValue = parseFloat(editingValue);
+      
+      if (modalType === "edit-stock") {
+        await updatePart(editingPartId, { currentStock: newValue });
+        Alert.alert("成功", "在庫数を更新しました");
+      } else if (modalType === "edit-min-stock") {
+        await updatePart(editingPartId, { minStock: newValue });
+        Alert.alert("成功", "最低在庫を更新しました");
+      }
+      
       setEditingPartId(null);
-      setEditingStock("");
+      setEditingValue("");
+      setModalType(null);
       await loadInventory();
-      Alert.alert("成功", "在庫数を更新しました");
     } catch (error) {
-      Alert.alert("エラー", "在庫数の更新に失敗しました");
+      Alert.alert("エラー", "更新に失敗しました");
+    }
+  };
+
+  const handleDeletePart = (partId: string, partName: string) => {
+    Alert.alert(
+      "削除確認",
+      `「${partName}」を削除してもよろしいですか？`,
+      [
+        { text: "キャンセル", onPress: () => {} },
+        {
+          text: "削除",
+          onPress: async () => {
+            try {
+              await deletePart(partId);
+              Alert.alert("成功", "部品を削除しました");
+              await loadInventory();
+            } catch (error) {
+              Alert.alert("エラー", "部品の削除に失敗しました");
+            }
+          },
+          style: "destructive",
+        },
+      ]
+    );
+  };
+
+  const handleAddPart = async () => {
+    if (!newPartName || !newPartNumber || !newUnitPrice || !newMinStock) {
+      Alert.alert("エラー", "すべての項目を入力してください");
+      return;
+    }
+
+    try {
+      await addPart({
+        name: newPartName,
+        partNumber: newPartNumber,
+        unitPrice: parseFloat(newUnitPrice),
+        currentStock: 0,
+        minStock: parseFloat(newMinStock),
+        allowDecimal: newAllowDecimal,
+      });
+
+      Alert.alert("成功", "部品を追加しました");
+      setNewPartName("");
+      setNewPartNumber("");
+      setNewUnitPrice("");
+      setNewMinStock("");
+      setNewAllowDecimal(false);
+      setModalType(null);
+      await loadInventory();
+    } catch (error) {
+      Alert.alert("エラー", "部品の追加に失敗しました");
     }
   };
 
@@ -178,14 +255,32 @@ export default function InventoryScreen() {
         </View>
       )}
 
-      {/* 修正ボタン */}
-      <Pressable 
-        onPress={() => handleEditStock(item.part.id, item.part.currentStock)}
-        style={({ pressed }) => [pressed && { opacity: 0.7 }]}
-        className="mt-3 bg-primary rounded-lg py-2 px-4"
-      >
-        <Text className="text-white text-center font-semibold">在庫数を修正</Text>
-      </Pressable>
+      {/* アクションボタン */}
+      <View className="flex-row gap-2 mt-3">
+        <Pressable 
+          onPress={() => handleEditStock(item.part.id, item.part.currentStock)}
+          style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+          className="flex-1 bg-primary rounded-lg py-2"
+        >
+          <Text className="text-white text-center font-semibold text-sm">在庫修正</Text>
+        </Pressable>
+        
+        <Pressable 
+          onPress={() => handleEditMinStock(item.part.id, item.part.minStock)}
+          style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+          className="flex-1 bg-warning rounded-lg py-2"
+        >
+          <Text className="text-white text-center font-semibold text-sm">最低在庫修正</Text>
+        </Pressable>
+        
+        <Pressable 
+          onPress={() => handleDeletePart(item.part.id, item.part.name)}
+          style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+          className="flex-1 bg-error rounded-lg py-2"
+        >
+          <Text className="text-white text-center font-semibold text-sm">削除</Text>
+        </Pressable>
+      </View>
     </View>
   );
 
@@ -194,11 +289,20 @@ export default function InventoryScreen() {
     <ScreenContainer className="p-4">
       <View className="flex-1">
         {/* ヘッダー */}
-        <View className="flex-row items-center gap-2 mb-4">
-          <Pressable onPress={() => router.back()} style={({ pressed }) => [pressed && { opacity: 0.7 }]}>
-            <Text className="text-2xl">←</Text>
+        <View className="flex-row items-center justify-between mb-4">
+          <View className="flex-row items-center gap-2">
+            <Pressable onPress={() => router.back()} style={({ pressed }) => [pressed && { opacity: 0.7 }]}>
+              <Text className="text-2xl">←</Text>
+            </Pressable>
+            <Text className="text-2xl font-bold text-foreground">在庫一覧</Text>
+          </View>
+          <Pressable 
+            onPress={() => setModalType("add-part")}
+            style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+            className="bg-success rounded-full w-10 h-10 items-center justify-center"
+          >
+            <Text className="text-white text-xl font-bold">+</Text>
           </Pressable>
-          <Text className="text-2xl font-bold text-foreground">在庫一覧</Text>
         </View>
 
         {/* 検索フィールド */}
@@ -251,10 +355,10 @@ export default function InventoryScreen() {
 
     {/* 在庫修正モーダル */}
     <Modal
-      visible={editingPartId !== null}
+      visible={modalType === "edit-stock"}
       transparent
       animationType="fade"
-      onRequestClose={() => setEditingPartId(null)}
+      onRequestClose={() => setModalType(null)}
     >
       <View className="flex-1 bg-black/50 justify-center items-center p-4">
         <View className="bg-background rounded-lg p-6 w-full max-w-sm">
@@ -262,8 +366,8 @@ export default function InventoryScreen() {
           
           <TextInput
             placeholder="新しい在庫数を入力"
-            value={editingStock}
-            onChangeText={setEditingStock}
+            value={editingValue}
+            onChangeText={setEditingValue}
             keyboardType="decimal-pad"
             className="bg-surface border border-border rounded-lg px-4 py-3 mb-4 text-foreground"
             placeholderTextColor="#999"
@@ -271,7 +375,7 @@ export default function InventoryScreen() {
           
           <View className="flex-row gap-3">
             <Pressable
-              onPress={() => setEditingPartId(null)}
+              onPress={() => setModalType(null)}
               style={({ pressed }) => [pressed && { opacity: 0.7 }]}
               className="flex-1 bg-muted rounded-lg py-3"
             >
@@ -279,11 +383,132 @@ export default function InventoryScreen() {
             </Pressable>
             
             <Pressable
-              onPress={handleSaveStock}
+              onPress={handleSaveValue}
               style={({ pressed }) => [pressed && { opacity: 0.7 }]}
               className="flex-1 bg-primary rounded-lg py-3"
             >
               <Text className="text-center font-semibold text-white">保存</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+
+    {/* 最低在庫修正モーダル */}
+    <Modal
+      visible={modalType === "edit-min-stock"}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setModalType(null)}
+    >
+      <View className="flex-1 bg-black/50 justify-center items-center p-4">
+        <View className="bg-background rounded-lg p-6 w-full max-w-sm">
+          <Text className="text-lg font-bold text-foreground mb-4">最低在庫を修正</Text>
+          
+          <TextInput
+            placeholder="新しい最低在庫を入力"
+            value={editingValue}
+            onChangeText={setEditingValue}
+            keyboardType="decimal-pad"
+            className="bg-surface border border-border rounded-lg px-4 py-3 mb-4 text-foreground"
+            placeholderTextColor="#999"
+          />
+          
+          <View className="flex-row gap-3">
+            <Pressable
+              onPress={() => setModalType(null)}
+              style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+              className="flex-1 bg-muted rounded-lg py-3"
+            >
+              <Text className="text-center font-semibold text-foreground">キャンセル</Text>
+            </Pressable>
+            
+            <Pressable
+              onPress={handleSaveValue}
+              style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+              className="flex-1 bg-primary rounded-lg py-3"
+            >
+              <Text className="text-center font-semibold text-white">保存</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+
+    {/* 部品追加モーダル */}
+    <Modal
+      visible={modalType === "add-part"}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setModalType(null)}
+    >
+      <View className="flex-1 bg-black/50 justify-center items-center p-4">
+        <View className="bg-background rounded-lg p-6 w-full max-w-sm max-h-96">
+          <Text className="text-lg font-bold text-foreground mb-4">新規部品を追加</Text>
+          
+          <ScrollView showsVerticalScrollIndicator={false}>
+            <TextInput
+              placeholder="部品名"
+              value={newPartName}
+              onChangeText={setNewPartName}
+              className="bg-surface border border-border rounded-lg px-4 py-3 mb-3 text-foreground"
+              placeholderTextColor="#999"
+            />
+            
+            <TextInput
+              placeholder="品番"
+              value={newPartNumber}
+              onChangeText={setNewPartNumber}
+              className="bg-surface border border-border rounded-lg px-4 py-3 mb-3 text-foreground"
+              placeholderTextColor="#999"
+            />
+            
+            <TextInput
+              placeholder="単価（円）"
+              value={newUnitPrice}
+              onChangeText={setNewUnitPrice}
+              keyboardType="decimal-pad"
+              className="bg-surface border border-border rounded-lg px-4 py-3 mb-3 text-foreground"
+              placeholderTextColor="#999"
+            />
+            
+            <TextInput
+              placeholder="最低在庫"
+              value={newMinStock}
+              onChangeText={setNewMinStock}
+              keyboardType="decimal-pad"
+              className="bg-surface border border-border rounded-lg px-4 py-3 mb-3 text-foreground"
+              placeholderTextColor="#999"
+            />
+            
+            {/* 小数使用フラグ */}
+            <Pressable
+              onPress={() => setNewAllowDecimal(!newAllowDecimal)}
+              style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+              className="flex-row items-center gap-3 mb-4 p-3 bg-surface rounded-lg border border-border"
+            >
+              <View className={`w-6 h-6 rounded border-2 ${newAllowDecimal ? "bg-primary border-primary" : "border-border"}`}>
+                {newAllowDecimal && <Text className="text-white text-center">✓</Text>}
+              </View>
+              <Text className="text-foreground">小数単位での在庫管理を許可</Text>
+            </Pressable>
+          </ScrollView>
+          
+          <View className="flex-row gap-3 mt-4">
+            <Pressable
+              onPress={() => setModalType(null)}
+              style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+              className="flex-1 bg-muted rounded-lg py-3"
+            >
+              <Text className="text-center font-semibold text-foreground">キャンセル</Text>
+            </Pressable>
+            
+            <Pressable
+              onPress={handleAddPart}
+              style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+              className="flex-1 bg-success rounded-lg py-3"
+            >
+              <Text className="text-center font-semibold text-white">追加</Text>
             </Pressable>
           </View>
         </View>
