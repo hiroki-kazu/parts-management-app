@@ -27,7 +27,16 @@ import * as Haptics from "expo-haptics";
 import * as FileSystem from "expo-file-system/legacy";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as MediaLibrary from "expo-media-library";
-import { zip } from "react-native-zip-archive";
+
+// Web環境ではZIPライブラリを使用しない
+let RNZipArchive: any = null;
+if (Platform.OS !== 'web') {
+  try {
+    RNZipArchive = require('react-native-zip-archive');
+  } catch (e) {
+    console.log('ZIP archive not available');
+  }
+}
 
 export default function MonthendScreen() {
   const router = useRouter();
@@ -232,6 +241,19 @@ export default function MonthendScreen() {
     try {
       setIsProcessing(true);
       
+      // Web環境ではZIP機能を使用できない
+      if (Platform.OS === 'web') {
+        Alert.alert("注意", "Web環境ではZIP機能は使用できません。\n個別にCSVをダウンロードしてください。");
+        setIsProcessing(false);
+        return;
+      }
+      
+      if (!RNZipArchive) {
+        Alert.alert("エラー", "ZIP機能が利用できません");
+        setIsProcessing(false);
+        return;
+      }
+      
       // 3つのCSVデータを取得
       const outboundCsv = await exportOutboundRecordsAsCSV();
       const inboundCsv = await exportInboundRecordsAsCSV();
@@ -276,7 +298,7 @@ export default function MonthendScreen() {
       }
       
       // ZIPファイルを作成
-      await zip(tempDir, zipPath);
+      await RNZipArchive.zip(tempDir, zipPath);
       
       // iOSの場合、メディアライブラリに保存
       if (Platform.OS === 'ios') {
