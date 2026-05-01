@@ -27,6 +27,7 @@ import * as Haptics from "expo-haptics";
 import * as FileSystem from "expo-file-system/legacy";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as MediaLibrary from "expo-media-library";
+import { zip } from "react-native-zip-archive";
 
 export default function MonthendScreen() {
   const router = useRouter();
@@ -227,6 +228,83 @@ export default function MonthendScreen() {
     }
   };
 
+  const handleExportAllAsZip = async () => {
+    try {
+      setIsProcessing(true);
+      
+      // 3つのCSVデータを取得
+      const outboundCsv = await exportOutboundRecordsAsCSV();
+      const inboundCsv = await exportInboundRecordsAsCSV();
+      const inventoryCsv = await getMonthlyInventorySummary(currentMonth);
+      
+      // 一時ディレクトリを作成
+      const tempDir = `${FileSystem.cacheDirectory}monthly_export_${Date.now()}/`;
+      await FileSystem.makeDirectoryAsync(tempDir, { intermediates: true });
+      
+      // 3つのCSVファイルを一時ディレクトリに保存
+      const outboundFile = `${tempDir}outbound_${currentMonth}.csv`;
+      const inboundFile = `${tempDir}inbound_${currentMonth}.csv`;
+      const inventoryFile = `${tempDir}inventory_summary_${currentMonth}.csv`;
+      
+      await FileSystem.writeAsStringAsync(outboundFile, outboundCsv, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      await FileSystem.writeAsStringAsync(inboundFile, inboundCsv, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      await FileSystem.writeAsStringAsync(inventoryFile, inventoryCsv, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      
+      // ZIPファイルのパスを決定
+      const zipFileName = `monthly_export_${currentMonth}.zip`;
+      let zipPath: string;
+      
+      if (Platform.OS === 'android') {
+        const downloadDir = `${FileSystem.documentDirectory}Download/`;
+        try {
+          const dirInfo = await FileSystem.getInfoAsync(downloadDir);
+          if (!dirInfo.exists) {
+            await FileSystem.makeDirectoryAsync(downloadDir, { intermediates: true });
+          }
+        } catch (e) {
+          console.log('Creating download directory failed');
+        }
+        zipPath = `${downloadDir}${zipFileName}`;
+      } else {
+        zipPath = `${FileSystem.cacheDirectory}${zipFileName}`;
+      }
+      
+      // ZIPファイルを作成
+      await zip(tempDir, zipPath);
+      
+      // iOSの場合、メディアライブラリに保存
+      if (Platform.OS === 'ios') {
+        try {
+          await MediaLibrary.saveToLibraryAsync(zipPath);
+        } catch (e) {
+          console.log('Media library save failed');
+          await Share.share({
+            url: zipPath,
+            title: zipFileName,
+            message: `${zipFileName}をダウンロードしています...`,
+          });
+        }
+      }
+      
+      // 一時ディレクトリを削除
+      await FileSystem.deleteAsync(tempDir, { idempotent: true });
+      
+      Alert.alert("成功", `${zipFileName}をダウンロードしました`);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      console.error("Error exporting all as ZIP:", error);
+      Alert.alert("エラー", "ZIPファイルの作成に失敗しました");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   return (
     <ScreenContainer className="p-4">
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -391,17 +469,41 @@ export default function MonthendScreen() {
             <Pressable
               onPress={handleExportInbound}
               disabled={isProcessing}
-              style={({ pressed }) => [{
+              style={(({ pressed }) => [{
                 backgroundColor: '#10b981',
                 borderRadius: 8,
                 paddingVertical: 12,
                 opacity: isProcessing ? 0.5 : (pressed ? 0.7 : 1),
-              }]}
+              }])}
             >
               {isProcessing ? (
                 <ActivityIndicator color="white" />
               ) : (
                 <Text className="text-center text-white font-bold">入庫履歴をエクスポート</Text>
+              )}
+            </Pressable>
+          </View>
+
+          {/* 一括ZIPダウンロード */}
+          <View className="bg-surface rounded-lg p-4 mb-3 border border-border border-2" style={{ borderColor: '#f59e0b' }}>
+            <Text className="text-sm font-semibold text-foreground mb-2">📦 全ファイル一括ダウンロード</Text>
+            <Text className="text-xs text-muted mb-3">
+              3つのCSVファイルをZIPで圧縮してダウンロード
+            </Text>
+            <Pressable
+              onPress={handleExportAllAsZip}
+              disabled={isProcessing}
+              style={(({ pressed }) => [{
+                backgroundColor: '#f59e0b',
+                borderRadius: 8,
+                paddingVertical: 12,
+                opacity: isProcessing ? 0.5 : (pressed ? 0.7 : 1),
+              }])}
+            >
+              {isProcessing ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <Text className="text-center text-white font-bold">全ファイルをZIPでダウンロード</Text>
               )}
             </Pressable>
           </View>
