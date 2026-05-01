@@ -241,9 +241,19 @@ export default function MonthendScreen() {
       }
       
       // 3つのCSVデータを取得
+      console.log('Starting CSV export...');
       const outboundCsv = await exportOutboundRecordsAsCSV();
+      console.log('Outbound CSV created:', outboundCsv ? outboundCsv.length : 'empty');
+      
       const inboundCsv = await exportInboundRecordsAsCSV();
+      console.log('Inbound CSV created:', inboundCsv ? inboundCsv.length : 'empty');
+      
       const inventoryCsv = await getMonthlyInventorySummary(currentMonth);
+      console.log('Inventory CSV created:', inventoryCsv ? inventoryCsv.length : 'empty');
+      
+      if (!outboundCsv || !inboundCsv || !inventoryCsv) {
+        throw new Error('CSVデータが空です');
+      }
       
       // 一時ディレクトリを作成
       const tempDir = `${FileSystem.cacheDirectory}monthly_export_${Date.now()}/`;
@@ -284,18 +294,23 @@ export default function MonthendScreen() {
       }
       
       // JSZipを使用してZIPファイルを作成
+      console.log('Creating ZIP file...');
       const zip = new JSZip();
       zip.file(`outbound_${currentMonth}.csv`, outboundCsv);
       zip.file(`inbound_${currentMonth}.csv`, inboundCsv);
       zip.file(`inventory_summary_${currentMonth}.csv`, inventoryCsv);
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      console.log('Generating ZIP...');
+      const zipData = await zip.generateAsync({ type: 'uint8array' });
+      console.log('ZIP data created:', zipData.length);
       
       if (Platform.OS === 'android' || Platform.OS === 'ios') {
-        const zipBuffer = await zipBlob.arrayBuffer();
-        const zipBase64 = Buffer.from(zipBuffer).toString('base64');
+        console.log('Saving ZIP to:', zipPath);
+        const zipBase64 = Buffer.from(zipData).toString('base64');
+        console.log('ZIP base64 size:', zipBase64.length);
         await FileSystem.writeAsStringAsync(zipPath, zipBase64, {
           encoding: FileSystem.EncodingType.Base64,
         });
+        console.log('ZIP file saved successfully');
       }
       
       // iOSの場合、メディアライブラリに保存
@@ -319,7 +334,8 @@ export default function MonthendScreen() {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       console.error("Error exporting all as ZIP:", error);
-      Alert.alert("エラー", "ZIPファイルの作成に失敗しました");
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      Alert.alert("エラー", `ZIPファイルの作成に失敗しました\n\n詳細: ${errorMessage}`);
     } finally {
       setIsProcessing(false);
     }
