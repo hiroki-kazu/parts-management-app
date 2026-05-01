@@ -120,13 +120,6 @@ export default function MonthendScreen() {
 
   const exportCSVFile = async (csv: string, fileName: string) => {
     try {
-      const filePath = `${FileSystem.cacheDirectory}${fileName}`;
-
-      // ファイルをキャッシュディレクトリに保存
-      await FileSystem.writeAsStringAsync(filePath, csv, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
-
       // プラットフォーム別の処理
       if (Platform.OS === 'web') {
         // Web環境ではブラウザのダウンロード機能を使用
@@ -134,8 +127,35 @@ export default function MonthendScreen() {
         link.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
         link.download = fileName;
         link.click();
-      } else if (Platform.OS === 'ios' || Platform.OS === 'android') {
-        // iOS/Androidではメディアライブラリに保存
+      } else if (Platform.OS === 'android') {
+        // Androidではダウンロードフォルダに直接保存
+        const downloadDir = `${FileSystem.documentDirectory}Download/`;
+        
+        // ダウンロードフォルダが存在するか確認
+        try {
+          const dirInfo = await FileSystem.getInfoAsync(downloadDir);
+          if (!dirInfo.exists) {
+            await FileSystem.makeDirectoryAsync(downloadDir, { intermediates: true });
+          }
+        } catch (e) {
+          console.log('Creating download directory failed');
+        }
+        
+        const filePath = `${downloadDir}${fileName}`;
+        
+        // ファイルをダウンロードフォルダに保存
+        await FileSystem.writeAsStringAsync(filePath, csv, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+        
+        console.log('File saved to:', filePath);
+      } else if (Platform.OS === 'ios') {
+        // iOSではメディアライブラリに保存
+        const filePath = `${FileSystem.cacheDirectory}${fileName}`;
+        await FileSystem.writeAsStringAsync(filePath, csv, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+        
         try {
           await MediaLibrary.saveToLibraryAsync(filePath);
         } catch (e) {
