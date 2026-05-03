@@ -253,9 +253,22 @@ export default function MonthendScreen() {
       const zipData = await zip.generateAsync({ type: 'uint8array' });
       
       const zipBase64 = Buffer.from(zipData).toString('base64');
-      await FileSystem.writeAsStringAsync(zipPath, zipBase64, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
+      
+      // Android実機ではBase64エンコーディングが正しく処理されないため、
+      // バイナリデータとして直接書き込む
+      if (Platform.OS === 'android') {
+        // Uint8ArrayをBase64文字列に変換
+        const binaryString = String.fromCharCode.apply(null, Array.from(zipData));
+        const base64Data = Buffer.from(binaryString, 'binary').toString('base64');
+        await FileSystem.writeAsStringAsync(zipPath, base64Data, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+      } else {
+        // iOS/Web
+        await FileSystem.writeAsStringAsync(zipPath, zipBase64, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+      }
       
       // Share APIで共有
       await Share.share({
