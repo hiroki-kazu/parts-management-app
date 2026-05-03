@@ -30,6 +30,26 @@ import * as MediaLibrary from "expo-media-library";
 import JSZip from "jszip";
 import { Buffer } from "buffer";
 
+// FileReaderのポリフィル（React Nativeで必要）
+if (typeof FileReader === 'undefined') {
+  (global as any).FileReader = class FileReader {
+    result: string | ArrayBuffer | null = null;
+    onload: ((event: any) => void) | null = null;
+    onerror: ((event: any) => void) | null = null;
+    
+    readAsDataURL(blob: Blob) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        this.result = reader.result;
+        this.onload?.(new Event('load'));
+      };
+      reader.onerror = () => {
+        this.onerror?.(new Event('error'));
+      };
+    }
+  };
+}
+
 export default function MonthendScreen() {
   const router = useRouter();
   const [isProcessing, setIsProcessing] = useState(false);
@@ -244,31 +264,29 @@ export default function MonthendScreen() {
       });
       
       const zipFileName = `monthly_export_${currentMonth}.zip`;
-      const zipPath = `${FileSystem.documentDirectory}${zipFileName}`;
       
       const zip = new JSZip();
       zip.file(`outbound_${currentMonth}.csv`, outboundCsv);
       zip.file(`inbound_${currentMonth}.csv`, inboundCsv);
       zip.file(`inventory_summary_${currentMonth}.csv`, inventoryCsv);
-      const zipData = await zip.generateAsync({ type: 'uint8array' });
       
-      const zipBase64 = Buffer.from(zipData).toString('base64');
+      // Blobとして生成
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const zipBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result.split(',')[1]); // Data URL形式から Base64部分を抽出
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(zipBlob);
+      });
       
-      // Android実機ではBase64エンコーディングが正しく処理されないため、
-      // バイナリデータとして直接書き込む
-      if (Platform.OS === 'android') {
-        // Uint8ArrayをBase64文字列に変換
-        const binaryString = String.fromCharCode.apply(null, Array.from(zipData));
-        const base64Data = Buffer.from(binaryString, 'binary').toString('base64');
-        await FileSystem.writeAsStringAsync(zipPath, base64Data, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-      } else {
-        // iOS/Web
-        await FileSystem.writeAsStringAsync(zipPath, zipBase64, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-      }
+      // ファイルシステムに保存
+      const zipPath = `${FileSystem.documentDirectory}${zipFileName}`;
+      await FileSystem.writeAsStringAsync(zipPath, zipBase64, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
       
       // Share APIで共有
       await Share.share({
