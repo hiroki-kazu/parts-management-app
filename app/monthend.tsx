@@ -129,18 +129,46 @@ export default function MonthendScreen() {
         link.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
         link.download = fileName;
         link.click();
-      } else {
-        // Android、iOSではShare APIを使用
+      } else if (Platform.OS === 'android') {
+        // Android: MediaLibraryを使用してダウンロードフォルダに保存
         const filePath = `${FileSystem.cacheDirectory}${fileName}`;
         await FileSystem.writeAsStringAsync(filePath, csv, {
           encoding: FileSystem.EncodingType.UTF8,
         });
         
-        await Share.share({
-          url: filePath,
-          title: fileName,
-          message: `${fileName}を保存してください`,
+        try {
+          // MediaLibraryでダウンロードフォルダに保存
+          const asset = await MediaLibrary.createAssetAsync(filePath);
+          console.log('File saved to MediaLibrary:', asset);
+          Alert.alert('保存完了', `${fileName}がダウンロードフォルダに保存されました`);
+        } catch (mediaError) {
+          console.error('MediaLibrary error:', mediaError);
+          // フォールバック: Share APIを試す
+          await Share.share({
+            url: filePath,
+            title: fileName,
+            message: `${fileName}を保存してください`,
+          });
+        }
+      } else {
+        // iOS: MediaLibraryを使用
+        const filePath = `${FileSystem.cacheDirectory}${fileName}`;
+        await FileSystem.writeAsStringAsync(filePath, csv, {
+          encoding: FileSystem.EncodingType.UTF8,
         });
+        
+        try {
+          await MediaLibrary.createAssetAsync(filePath);
+          Alert.alert('保存完了', `${fileName}が写真アプリに保存されました`);
+        } catch (mediaError) {
+          console.error('MediaLibrary error:', mediaError);
+          // フォールバック: Share APIを試す
+          await Share.share({
+            url: filePath,
+            title: fileName,
+            message: `${fileName}を保存してください`,
+          });
+        }
       }
 
       return true;
@@ -157,7 +185,6 @@ export default function MonthendScreen() {
       const fileName = `outbound_${currentMonth}.csv`;
 
       await exportCSVFile(csv, fileName);
-      Alert.alert("成功", `${fileName}をダウンロードしました`);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       console.error("Error exporting outbound records:", error);
@@ -174,7 +201,6 @@ export default function MonthendScreen() {
       const fileName = `inbound_${currentMonth}.csv`;
 
       await exportCSVFile(csv, fileName);
-      Alert.alert("成功", `${fileName}をダウンロードしました`);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       console.error("Error exporting inbound records:", error);
@@ -191,7 +217,6 @@ export default function MonthendScreen() {
       const fileName = `inventory_summary_${currentMonth}.csv`;
 
       await exportCSVFile(csv, fileName);
-      Alert.alert("成功", `${fileName}をダウンロードしました`);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       console.error("Error exporting inventory summary:", error);
@@ -199,7 +224,7 @@ export default function MonthendScreen() {
     } finally {
       setIsProcessing(false);
     }
-  };
+  }
 
   const handleExportAllAsZip = async () => {
     try {
@@ -266,17 +291,39 @@ export default function MonthendScreen() {
         encoding: FileSystem.EncodingType.Base64,
       });
       
-      // Share APIを使用してユーザーが保存先を選択できるようにする
-      await Share.share({
-        url: zipPath,
-        title: zipFileName,
-        message: `${zipFileName}を保存してください`,
-      });
+      // Android/iOS: MediaLibraryを使用してダウンロードフォルダに保存
+      if (Platform.OS === 'android') {
+        try {
+          const asset = await MediaLibrary.createAssetAsync(zipPath);
+          console.log('ZIP file saved to MediaLibrary:', asset);
+          Alert.alert('保存完了', `${zipFileName}がダウンロードフォルダに保存されました`);
+        } catch (mediaError) {
+          console.error('MediaLibrary error:', mediaError);
+          // フォールバック: Share APIを試す
+          await Share.share({
+            url: zipPath,
+            title: zipFileName,
+            message: `${zipFileName}を保存してください`,
+          });
+        }
+      } else {
+        try {
+          await MediaLibrary.createAssetAsync(zipPath);
+          Alert.alert('保存完了', `${zipFileName}が写真アプリに保存されました`);
+        } catch (mediaError) {
+          console.error('MediaLibrary error:', mediaError);
+          // フォールバック: Share APIを試す
+          await Share.share({
+            url: zipPath,
+            title: zipFileName,
+            message: `${zipFileName}を保存してください`,
+          });
+        }
+      }
       
       // 一時ディレクトリを削除
       await FileSystem.deleteAsync(tempDir, { idempotent: true });
       
-      Alert.alert("成功", `${zipFileName}をダウンロードしました`);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       console.error("Error exporting all as ZIP:", error);
