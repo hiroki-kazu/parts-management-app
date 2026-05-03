@@ -138,7 +138,7 @@ export default function MonthendScreen() {
         link.download = fileName;
         link.click();
       } else {
-        // Native (iOS/Android): アプリの内部ストレージに保存
+        // Native (iOS/Android): ファイルをローカルに保存
         const filePath = `${FileSystem.documentDirectory}${fileName}`;
         await FileSystem.writeAsStringAsync(filePath, csv, {
           encoding: FileSystem.EncodingType.UTF8,
