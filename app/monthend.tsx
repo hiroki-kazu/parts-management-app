@@ -129,46 +129,18 @@ export default function MonthendScreen() {
         link.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
         link.download = fileName;
         link.click();
-      } else if (Platform.OS === 'android') {
-        // Androidではダウンロードフォルダに直接保存
-        const downloadDir = `${FileSystem.documentDirectory}Download/`;
-        
-        // ダウンロードフォルダが存在するか確認
-        try {
-          const dirInfo = await FileSystem.getInfoAsync(downloadDir);
-          if (!dirInfo.exists) {
-            await FileSystem.makeDirectoryAsync(downloadDir, { intermediates: true });
-          }
-        } catch (e) {
-          console.log('Creating download directory failed');
-        }
-        
-        const filePath = `${downloadDir}${fileName}`;
-        
-        // ファイルをダウンロードフォルダに保存
-        await FileSystem.writeAsStringAsync(filePath, csv, {
-          encoding: FileSystem.EncodingType.UTF8,
-        });
-        
-        console.log('File saved to:', filePath);
-      } else if (Platform.OS === 'ios') {
-        // iOSではメディアライブラリに保存
+      } else {
+        // Android、iOSではShare APIを使用
         const filePath = `${FileSystem.cacheDirectory}${fileName}`;
         await FileSystem.writeAsStringAsync(filePath, csv, {
           encoding: FileSystem.EncodingType.UTF8,
         });
         
-        try {
-          await MediaLibrary.saveToLibraryAsync(filePath);
-        } catch (e) {
-          console.log('Media library save failed, using Share instead');
-          // フォールバック：Share APIを使用
-          await Share.share({
-            url: filePath,
-            title: fileName,
-            message: `${fileName}をダウンロードしています...`,
-          });
-        }
+        await Share.share({
+          url: filePath,
+          title: fileName,
+          message: `${fileName}を保存してください`,
+        });
       }
 
       return true;
@@ -276,22 +248,7 @@ export default function MonthendScreen() {
       
       // ZIPファイルのパスを決定
       const zipFileName = `monthly_export_${currentMonth}.zip`;
-      let zipPath: string;
-      
-      if (Platform.OS === 'android') {
-        const downloadDir = `${FileSystem.documentDirectory}Download/`;
-        try {
-          const dirInfo = await FileSystem.getInfoAsync(downloadDir);
-          if (!dirInfo.exists) {
-            await FileSystem.makeDirectoryAsync(downloadDir, { intermediates: true });
-          }
-        } catch (e) {
-          console.log('Creating download directory failed');
-        }
-        zipPath = `${downloadDir}${zipFileName}`;
-      } else {
-        zipPath = `${FileSystem.cacheDirectory}${zipFileName}`;
-      }
+      const zipPath = `${FileSystem.cacheDirectory}${zipFileName}`;
       
       // JSZipを使用してZIPファイルを作成
       console.log('Creating ZIP file...');
@@ -303,29 +260,18 @@ export default function MonthendScreen() {
       const zipData = await zip.generateAsync({ type: 'uint8array' });
       console.log('ZIP data created:', zipData.length);
       
-      if (Platform.OS === 'android' || Platform.OS === 'ios') {
-        console.log('Saving ZIP to:', zipPath);
-        const zipBase64 = Buffer.from(zipData).toString('base64');
-        console.log('ZIP base64 size:', zipBase64.length);
-        await FileSystem.writeAsStringAsync(zipPath, zipBase64, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-        console.log('ZIP file saved successfully');
-      }
+      // ZIPファイルをキャッシュディレクトリに保存
+      const zipBase64 = Buffer.from(zipData).toString('base64');
+      await FileSystem.writeAsStringAsync(zipPath, zipBase64, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
       
-      // iOSの場合、メディアライブラリに保存
-      if (Platform.OS === 'ios') {
-        try {
-          await MediaLibrary.saveToLibraryAsync(zipPath);
-        } catch (e) {
-          console.log('Media library save failed');
-          await Share.share({
-            url: zipPath,
-            title: zipFileName,
-            message: `${zipFileName}をダウンロードしています...`,
-          });
-        }
-      }
+      // Share APIを使用してユーザーが保存先を選択できるようにする
+      await Share.share({
+        url: zipPath,
+        title: zipFileName,
+        message: `${zipFileName}を保存してください`,
+      });
       
       // 一時ディレクトリを削除
       await FileSystem.deleteAsync(tempDir, { idempotent: true });
