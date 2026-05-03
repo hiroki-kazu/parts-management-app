@@ -137,75 +137,27 @@ export default function MonthendScreen() {
         link.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
         link.download = fileName;
         link.click();
-      } else if (Platform.OS === 'android') {
-        const filePath = `${FileSystem.cacheDirectory}${fileName}`;
-        await FileSystem.writeAsStringAsync(filePath, csv, {
-          encoding: FileSystem.EncodingType.UTF8,
-        });
-        
-        try {
-          const { status } = await MediaLibrary.getPermissionsAsync();
-          console.log('Current MediaLibrary permission status:', status);
-          
-          if (status !== 'granted') {
-            const { status: newStatus } = await MediaLibrary.requestPermissionsAsync();
-            console.log('Requested MediaLibrary permission status:', newStatus);
-            if (newStatus !== 'granted') {
-              throw new Error('MediaLibrary permission denied');
-            }
-          }
-          
-          const asset = await MediaLibrary.createAssetAsync(filePath);
-          console.log('File saved to MediaLibrary:', asset);
-          Alert.alert('保存完了', `${fileName}がダウンロードフォルダに保存されました`);
-        } catch (mediaError) {
-          console.error('MediaLibrary error:', mediaError);
-          try {
-            await Share.share({
-              url: filePath,
-              title: fileName,
-              message: `${fileName}を保存してください`,
-            });
-          } catch (shareError) {
-            console.error('Share API error:', shareError);
-            Alert.alert('エラー', 'ファイルを保存できません\n\nパーミッションを確認してください');
-          }
-        }
       } else {
-        const filePath = `${FileSystem.cacheDirectory}${fileName}`;
+        // Native (iOS/Android): アプリの内部ストレージに保存
+        const filePath = `${FileSystem.documentDirectory}${fileName}`;
         await FileSystem.writeAsStringAsync(filePath, csv, {
           encoding: FileSystem.EncodingType.UTF8,
         });
         
-        try {
-          const { status } = await MediaLibrary.getPermissionsAsync();
-          if (status !== 'granted') {
-            const { status: newStatus } = await MediaLibrary.requestPermissionsAsync();
-            if (newStatus !== 'granted') {
-              throw new Error('MediaLibrary permission denied');
-            }
-          }
-          
-          await MediaLibrary.createAssetAsync(filePath);
-          Alert.alert('保存完了', `${fileName}が写真アプリに保存されました`);
-        } catch (mediaError) {
-          console.error('MediaLibrary error:', mediaError);
-          try {
-            await Share.share({
-              url: filePath,
-              title: fileName,
-              message: `${fileName}を保存してください`,
-            });
-          } catch (shareError) {
-            console.error('Share API error:', shareError);
-            Alert.alert('エラー', 'ファイルを保存できません\n\nパーミッションを確認してください');
-          }
-        }
+        // Share APIで共有
+        await Share.share({
+          url: filePath,
+          title: fileName,
+          message: `${fileName}を保存してください`,
+        });
+        
+        Alert.alert('保存完了', `${fileName}が共有されました。メールやクラウドストレージで保存してください。`);
       }
 
       return true;
     } catch (error) {
       console.error("Error exporting CSV:", error);
+      Alert.alert('エラー', 'ファイルの作成に失敗しました');
       throw error;
     }
   };
@@ -292,7 +244,7 @@ export default function MonthendScreen() {
       });
       
       const zipFileName = `monthly_export_${currentMonth}.zip`;
-      const zipPath = `${FileSystem.cacheDirectory}${zipFileName}`;
+      const zipPath = `${FileSystem.documentDirectory}${zipFileName}`;
       
       const zip = new JSZip();
       zip.file(`outbound_${currentMonth}.csv`, outboundCsv);
@@ -305,58 +257,14 @@ export default function MonthendScreen() {
         encoding: FileSystem.EncodingType.Base64,
       });
       
-      if (Platform.OS === 'android') {
-        try {
-          const { status } = await MediaLibrary.getPermissionsAsync();
-          if (status !== 'granted') {
-            const { status: newStatus } = await MediaLibrary.requestPermissionsAsync();
-            if (newStatus !== 'granted') {
-              throw new Error('MediaLibrary permission denied');
-            }
-          }
-          
-          const asset = await MediaLibrary.createAssetAsync(zipPath);
-          console.log('ZIP file saved to MediaLibrary:', asset);
-          Alert.alert('保存完了', `${zipFileName}がダウンロードフォルダに保存されました`);
-        } catch (mediaError) {
-          console.error('MediaLibrary error:', mediaError);
-          try {
-            await Share.share({
-              url: zipPath,
-              title: zipFileName,
-              message: `${zipFileName}を保存してください`,
-            });
-          } catch (shareError) {
-            console.error('Share API error:', shareError);
-            Alert.alert('エラー', 'ファイルを保存できません\n\nパーミッションを確認してください');
-          }
-        }
-      } else {
-        try {
-          const { status } = await MediaLibrary.getPermissionsAsync();
-          if (status !== 'granted') {
-            const { status: newStatus } = await MediaLibrary.requestPermissionsAsync();
-            if (newStatus !== 'granted') {
-              throw new Error('MediaLibrary permission denied');
-            }
-          }
-          
-          await MediaLibrary.createAssetAsync(zipPath);
-          Alert.alert('保存完了', `${zipFileName}が写真アプリに保存されました`);
-        } catch (mediaError) {
-          console.error('MediaLibrary error:', mediaError);
-          try {
-            await Share.share({
-              url: zipPath,
-              title: zipFileName,
-              message: `${zipFileName}を保存してください`,
-            });
-          } catch (shareError) {
-            console.error('Share API error:', shareError);
-            Alert.alert('エラー', 'ファイルを保存できません\n\nパーミッションを確認してください');
-          }
-        }
-      }
+      // Share APIで共有
+      await Share.share({
+        url: zipPath,
+        title: zipFileName,
+        message: `${zipFileName}を保存してください`,
+      });
+      
+      Alert.alert('保存完了', `${zipFileName}が共有されました。メールやクラウドストレージで保存してください。`);
       
       await FileSystem.deleteAsync(tempDir, { idempotent: true });
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
