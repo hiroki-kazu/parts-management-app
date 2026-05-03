@@ -25,30 +25,26 @@ import {
 } from "@/lib/storage";
 import * as Haptics from "expo-haptics";
 import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
+
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as MediaLibrary from "expo-media-library";
 import JSZip from "jszip";
 import { Buffer } from "buffer";
 
-// FileReaderのポリフィル（React Nativeで必要）
-if (typeof FileReader === 'undefined') {
-  (global as any).FileReader = class FileReader {
-    result: string | ArrayBuffer | null = null;
-    onload: ((event: any) => void) | null = null;
-    onerror: ((event: any) => void) | null = null;
-    
-    readAsDataURL(blob: Blob) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        this.result = reader.result;
-        this.onload?.(new Event('load'));
-      };
-      reader.onerror = () => {
-        this.onerror?.(new Event('error'));
-      };
-    }
-  };
-}
+// JSZipの種類定義
+type JSZipInstance = InstanceType<typeof JSZip>;
+
+
+// Base64への変換ユーティリティ
+const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return Buffer.from(binary, 'binary').toString('base64');
+};
 
 export default function MonthendScreen() {
   const router = useRouter();
@@ -265,22 +261,14 @@ export default function MonthendScreen() {
       
       const zipFileName = `monthly_export_${currentMonth}.zip`;
       
-      const zip = new JSZip();
+      const zip: JSZipInstance = new JSZip();
       zip.file(`outbound_${currentMonth}.csv`, outboundCsv);
       zip.file(`inbound_${currentMonth}.csv`, inboundCsv);
       zip.file(`inventory_summary_${currentMonth}.csv`, inventoryCsv);
       
-      // Blobとして生成
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
-      const zipBase64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result as string;
-          resolve(result.split(',')[1]); // Data URL形式から Base64部分を抽出
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(zipBlob);
-      });
+      // ArrayBufferとして生成し、Base64に変換
+      const zipArrayBuffer = await zip.generateAsync({ type: 'arraybuffer' }) as ArrayBuffer;
+      const zipBase64 = arrayBufferToBase64(zipArrayBuffer);
       
       // ファイルシステムに保存
       const zipPath = `${FileSystem.documentDirectory}${zipFileName}`;
@@ -288,12 +276,25 @@ export default function MonthendScreen() {
         encoding: FileSystem.EncodingType.Base64,
       });
       
-      // Share APIで共有
-      await Share.share({
-        url: zipPath,
-        title: zipFileName,
-        message: `${zipFileName}を保存してください`,
-      });
+      // Android実機ではSharing APIを使用
+      if (Platform.OS === 'android') {
+        const isAvailable = await Sharing.isAvailableAsync();
+        if (isAvailable) {
+          await Sharing.shareAsync(zipPath, {
+            mimeType: 'application/zip',
+            dialogTitle: zipFileName,
+          });
+        } else {
+          Alert.alert('警告', 'この端末では共有機能が利用できません');
+        }
+      } else {
+        // iOS/WebではShare APIを使用
+        await Share.share({
+          url: zipPath,
+          title: zipFileName,
+          message: `${zipFileName}を保存してください`,
+        });
+      }
       
       Alert.alert('保存完了', `${zipFileName}が共有されました。メールやクラウドストレージで保存してください。`);
       
