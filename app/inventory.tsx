@@ -17,7 +17,9 @@ import {
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useRouter } from "expo-router";
-import { getParts, updatePart, addPart, deletePart } from "@/lib/storage";
+import { getParts, updatePart, addPart, deletePart, importPartsFromCSV } from "@/lib/storage";
+import * as DocumentPicker from "expo-document-picker";
+import * as FileSystem from "expo-file-system/legacy";
 import { Part, InventoryStatus } from "@/lib/types";
 
 interface InventoryItem {
@@ -43,6 +45,46 @@ export default function InventoryScreen() {
   const [newUnitPrice, setNewUnitPrice] = useState("");
   const [newMinStock, setNewMinStock] = useState("");
   const [newAllowDecimal, setNewAllowDecimal] = useState(false);
+
+  // インポート機能
+  const handleImportParts = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: "text/csv",
+      });
+
+      if (result.canceled) {
+        return;
+      }
+
+      const fileUri = result.assets[0].uri;
+      const fileContent = await FileSystem.readAsStringAsync(fileUri);
+
+      Alert.alert(
+        "インポート確認",
+        "このCSVファイルから部品をインポートします。",
+        [
+          { text: "キャンセル", onPress: () => {} },
+          {
+            text: "インポート",
+            onPress: async () => {
+              try {
+                await importPartsFromCSV(fileContent);
+                Alert.alert("成功", "部品をインポートしました");
+                loadInventory();
+              } catch (error) {
+                console.error("Error importing parts:", error);
+                Alert.alert("エラー", "部品のインポートに失敗しました");
+              }
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      console.error("Error selecting file:", error);
+      Alert.alert("エラー", "ファイルの選択に失敗しました");
+    }
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -296,13 +338,22 @@ export default function InventoryScreen() {
             </Pressable>
             <Text className="text-2xl font-bold text-foreground">在庫一覧</Text>
           </View>
-          <Pressable 
-            onPress={() => setModalType("add-part")}
-            style={({ pressed }) => [pressed && { opacity: 0.7 }]}
-            className="bg-success rounded-full w-10 h-10 items-center justify-center"
-          >
-            <Text className="text-white text-xl font-bold">+</Text>
-          </Pressable>
+          <View className="flex-row gap-2">
+            <Pressable 
+              onPress={handleImportParts}
+              style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+              className="bg-primary rounded-full w-10 h-10 items-center justify-center"
+            >
+              <Text className="text-white text-lg">📥</Text>
+            </Pressable>
+            <Pressable 
+              onPress={() => setModalType("add-part")}
+              style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+              className="bg-success rounded-full w-10 h-10 items-center justify-center"
+            >
+              <Text className="text-white text-xl font-bold">+</Text>
+            </Pressable>
+          </View>
         </View>
 
         {/* 検索フィールド */}
