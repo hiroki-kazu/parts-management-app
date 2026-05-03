@@ -259,51 +259,39 @@ export default function MonthendScreen() {
         encoding: FileSystem.EncodingType.UTF8,
       });
       
-      const zipFileName = `monthly_export_${currentMonth}.zip`;
+      // JSON形式でエクスポート
+      const jsonFileName = `monthly_export_${currentMonth}.json`;
+      const exportData = {
+        exportDate: new Date().toISOString(),
+        month: currentMonth,
+        outboundRecords: outboundCsv,
+        inboundRecords: inboundCsv,
+        inventorySummary: inventoryCsv,
+      };
       
-      const zip: JSZipInstance = new JSZip();
-      zip.file(`outbound_${currentMonth}.csv`, outboundCsv);
-      zip.file(`inbound_${currentMonth}.csv`, inboundCsv);
-      zip.file(`inventory_summary_${currentMonth}.csv`, inventoryCsv);
-      
-      // ArrayBufferとして生成し、Base64に変換
-      const zipArrayBuffer = await zip.generateAsync({ type: 'arraybuffer' }) as ArrayBuffer;
-      const zipBase64 = arrayBufferToBase64(zipArrayBuffer);
+      const jsonContent = JSON.stringify(exportData, null, 2);
       
       // ファイルシステムに保存
-      const zipPath = `${FileSystem.documentDirectory}${zipFileName}`;
-      await FileSystem.writeAsStringAsync(zipPath, zipBase64, {
-        encoding: FileSystem.EncodingType.Base64,
+      const jsonPath = `${FileSystem.documentDirectory}${jsonFileName}`;
+      await FileSystem.writeAsStringAsync(jsonPath, jsonContent, {
+        encoding: FileSystem.EncodingType.UTF8,
       });
       
-      // Android実機ではSharing APIを使用
-      if (Platform.OS === 'android') {
-        const isAvailable = await Sharing.isAvailableAsync();
-        if (isAvailable) {
-          await Sharing.shareAsync(zipPath, {
-            mimeType: 'application/zip',
-            dialogTitle: zipFileName,
-          });
-        } else {
-          Alert.alert('警告', 'この端末では共有機能が利用できません');
-        }
-      } else {
-        // iOS/WebではShare APIを使用
-        await Share.share({
-          url: zipPath,
-          title: zipFileName,
-          message: `${zipFileName}を保存してください`,
-        });
-      }
+      // Share APIで共有
+      await Share.share({
+        url: jsonPath,
+        title: jsonFileName,
+        message: `${jsonFileName}を保存してください`,
+      });
       
-      Alert.alert('保存完了', `${zipFileName}が共有されました。メールやクラウドストレージで保存してください。`);
+      Alert.alert('保存完了', `${jsonFileName}が共有されました。メールやクラウドストレージで保存してください。`);
       
-      await FileSystem.deleteAsync(tempDir, { idempotent: true });
+      // tempDirの削除は不要（JSONを使用していないため）
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
-      console.error("Error exporting all as ZIP:", error);
+      console.error("Error exporting all as JSON:", error);
       const errorMessage = error instanceof Error ? error.message : String(error);
-      Alert.alert("エラー", `ZIPファイルの作成に失敗しました\n\n詳細: ${errorMessage}`);
+      Alert.alert("エラー", `JSONファイルの作成に失敗しました\n\n詳細: ${errorMessage}`);
     } finally {
       setIsProcessing(false);
     }
