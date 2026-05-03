@@ -42,7 +42,18 @@ export default function MonthendScreen() {
   // メディアライブラリのパーミッション要求
   useEffect(() => {
     if (Platform.OS !== 'web') {
-      MediaLibrary.requestPermissionsAsync();
+      const requestPermissions = async () => {
+        try {
+          const { status } = await MediaLibrary.requestPermissionsAsync();
+          console.log('MediaLibrary permission status:', status);
+          if (status !== 'granted') {
+            console.warn('MediaLibrary permission not granted');
+          }
+        } catch (error) {
+          console.error('Error requesting MediaLibrary permissions:', error);
+        }
+      };
+      requestPermissions();
     }
   }, []);
 
@@ -105,7 +116,6 @@ export default function MonthendScreen() {
           onPress: async () => {
             try {
               setIsProcessing(true);
-              // 翌月繰越は自動的に行われます（現在の在庫が次月の初期値）
               await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               Alert.alert("成功", "翌月への繰越が完了しました");
             } catch (error) {
@@ -122,52 +132,74 @@ export default function MonthendScreen() {
 
   const exportCSVFile = async (csv: string, fileName: string) => {
     try {
-      // プラットフォーム別の処理
       if (Platform.OS === 'web') {
-        // Web環境ではブラウザのダウンロード機能を使用
         const link = document.createElement('a');
         link.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
         link.download = fileName;
         link.click();
       } else if (Platform.OS === 'android') {
-        // Android: MediaLibraryを使用してダウンロードフォルダに保存
         const filePath = `${FileSystem.cacheDirectory}${fileName}`;
         await FileSystem.writeAsStringAsync(filePath, csv, {
           encoding: FileSystem.EncodingType.UTF8,
         });
         
         try {
-          // MediaLibraryでダウンロードフォルダに保存
+          const { status } = await MediaLibrary.getPermissionsAsync();
+          console.log('Current MediaLibrary permission status:', status);
+          
+          if (status !== 'granted') {
+            const { status: newStatus } = await MediaLibrary.requestPermissionsAsync();
+            console.log('Requested MediaLibrary permission status:', newStatus);
+            if (newStatus !== 'granted') {
+              throw new Error('MediaLibrary permission denied');
+            }
+          }
+          
           const asset = await MediaLibrary.createAssetAsync(filePath);
           console.log('File saved to MediaLibrary:', asset);
           Alert.alert('保存完了', `${fileName}がダウンロードフォルダに保存されました`);
         } catch (mediaError) {
           console.error('MediaLibrary error:', mediaError);
-          // フォールバック: Share APIを試す
-          await Share.share({
-            url: filePath,
-            title: fileName,
-            message: `${fileName}を保存してください`,
-          });
+          try {
+            await Share.share({
+              url: filePath,
+              title: fileName,
+              message: `${fileName}を保存してください`,
+            });
+          } catch (shareError) {
+            console.error('Share API error:', shareError);
+            Alert.alert('エラー', 'ファイルを保存できません\n\nパーミッションを確認してください');
+          }
         }
       } else {
-        // iOS: MediaLibraryを使用
         const filePath = `${FileSystem.cacheDirectory}${fileName}`;
         await FileSystem.writeAsStringAsync(filePath, csv, {
           encoding: FileSystem.EncodingType.UTF8,
         });
         
         try {
+          const { status } = await MediaLibrary.getPermissionsAsync();
+          if (status !== 'granted') {
+            const { status: newStatus } = await MediaLibrary.requestPermissionsAsync();
+            if (newStatus !== 'granted') {
+              throw new Error('MediaLibrary permission denied');
+            }
+          }
+          
           await MediaLibrary.createAssetAsync(filePath);
           Alert.alert('保存完了', `${fileName}が写真アプリに保存されました`);
         } catch (mediaError) {
           console.error('MediaLibrary error:', mediaError);
-          // フォールバック: Share APIを試す
-          await Share.share({
-            url: filePath,
-            title: fileName,
-            message: `${fileName}を保存してください`,
-          });
+          try {
+            await Share.share({
+              url: filePath,
+              title: fileName,
+              message: `${fileName}を保存してください`,
+            });
+          } catch (shareError) {
+            console.error('Share API error:', shareError);
+            Alert.alert('エラー', 'ファイルを保存できません\n\nパーミッションを確認してください');
+          }
         }
       }
 
@@ -183,7 +215,6 @@ export default function MonthendScreen() {
       setIsProcessing(true);
       const csv = await exportOutboundRecordsAsCSV();
       const fileName = `outbound_${currentMonth}.csv`;
-
       await exportCSVFile(csv, fileName);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
@@ -199,7 +230,6 @@ export default function MonthendScreen() {
       setIsProcessing(true);
       const csv = await exportInboundRecordsAsCSV();
       const fileName = `inbound_${currentMonth}.csv`;
-
       await exportCSVFile(csv, fileName);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
@@ -215,7 +245,6 @@ export default function MonthendScreen() {
       setIsProcessing(true);
       const csv = await getMonthlyInventorySummary(currentMonth);
       const fileName = `inventory_summary_${currentMonth}.csv`;
-
       await exportCSVFile(csv, fileName);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
@@ -224,39 +253,30 @@ export default function MonthendScreen() {
     } finally {
       setIsProcessing(false);
     }
-  }
+  };
 
   const handleExportAllAsZip = async () => {
     try {
       setIsProcessing(true);
       
-      // Web環境ではZIP機能を使用できない
       if (Platform.OS === 'web') {
         Alert.alert("注意", "Web環境ではZIP機能は使用できません。\n個別にCSVをダウンロードしてください。");
         setIsProcessing(false);
         return;
       }
       
-      // 3つのCSVデータを取得
       console.log('Starting CSV export...');
       const outboundCsv = await exportOutboundRecordsAsCSV();
-      console.log('Outbound CSV created:', outboundCsv ? outboundCsv.length : 'empty');
-      
       const inboundCsv = await exportInboundRecordsAsCSV();
-      console.log('Inbound CSV created:', inboundCsv ? inboundCsv.length : 'empty');
-      
       const inventoryCsv = await getMonthlyInventorySummary(currentMonth);
-      console.log('Inventory CSV created:', inventoryCsv ? inventoryCsv.length : 'empty');
       
       if (!outboundCsv || !inboundCsv || !inventoryCsv) {
         throw new Error('CSVデータが空です');
       }
       
-      // 一時ディレクトリを作成
       const tempDir = `${FileSystem.cacheDirectory}monthly_export_${Date.now()}/`;
       await FileSystem.makeDirectoryAsync(tempDir, { intermediates: true });
       
-      // 3つのCSVファイルを一時ディレクトリに保存
       const outboundFile = `${tempDir}outbound_${currentMonth}.csv`;
       const inboundFile = `${tempDir}inbound_${currentMonth}.csv`;
       const inventoryFile = `${tempDir}inventory_summary_${currentMonth}.csv`;
@@ -271,59 +291,74 @@ export default function MonthendScreen() {
         encoding: FileSystem.EncodingType.UTF8,
       });
       
-      // ZIPファイルのパスを決定
       const zipFileName = `monthly_export_${currentMonth}.zip`;
       const zipPath = `${FileSystem.cacheDirectory}${zipFileName}`;
       
-      // JSZipを使用してZIPファイルを作成
-      console.log('Creating ZIP file...');
       const zip = new JSZip();
       zip.file(`outbound_${currentMonth}.csv`, outboundCsv);
       zip.file(`inbound_${currentMonth}.csv`, inboundCsv);
       zip.file(`inventory_summary_${currentMonth}.csv`, inventoryCsv);
-      console.log('Generating ZIP...');
       const zipData = await zip.generateAsync({ type: 'uint8array' });
-      console.log('ZIP data created:', zipData.length);
       
-      // ZIPファイルをキャッシュディレクトリに保存
       const zipBase64 = Buffer.from(zipData).toString('base64');
       await FileSystem.writeAsStringAsync(zipPath, zipBase64, {
         encoding: FileSystem.EncodingType.Base64,
       });
       
-      // Android/iOS: MediaLibraryを使用してダウンロードフォルダに保存
       if (Platform.OS === 'android') {
         try {
+          const { status } = await MediaLibrary.getPermissionsAsync();
+          if (status !== 'granted') {
+            const { status: newStatus } = await MediaLibrary.requestPermissionsAsync();
+            if (newStatus !== 'granted') {
+              throw new Error('MediaLibrary permission denied');
+            }
+          }
+          
           const asset = await MediaLibrary.createAssetAsync(zipPath);
           console.log('ZIP file saved to MediaLibrary:', asset);
           Alert.alert('保存完了', `${zipFileName}がダウンロードフォルダに保存されました`);
         } catch (mediaError) {
           console.error('MediaLibrary error:', mediaError);
-          // フォールバック: Share APIを試す
-          await Share.share({
-            url: zipPath,
-            title: zipFileName,
-            message: `${zipFileName}を保存してください`,
-          });
+          try {
+            await Share.share({
+              url: zipPath,
+              title: zipFileName,
+              message: `${zipFileName}を保存してください`,
+            });
+          } catch (shareError) {
+            console.error('Share API error:', shareError);
+            Alert.alert('エラー', 'ファイルを保存できません\n\nパーミッションを確認してください');
+          }
         }
       } else {
         try {
+          const { status } = await MediaLibrary.getPermissionsAsync();
+          if (status !== 'granted') {
+            const { status: newStatus } = await MediaLibrary.requestPermissionsAsync();
+            if (newStatus !== 'granted') {
+              throw new Error('MediaLibrary permission denied');
+            }
+          }
+          
           await MediaLibrary.createAssetAsync(zipPath);
           Alert.alert('保存完了', `${zipFileName}が写真アプリに保存されました`);
         } catch (mediaError) {
           console.error('MediaLibrary error:', mediaError);
-          // フォールバック: Share APIを試す
-          await Share.share({
-            url: zipPath,
-            title: zipFileName,
-            message: `${zipFileName}を保存してください`,
-          });
+          try {
+            await Share.share({
+              url: zipPath,
+              title: zipFileName,
+              message: `${zipFileName}を保存してください`,
+            });
+          } catch (shareError) {
+            console.error('Share API error:', shareError);
+            Alert.alert('エラー', 'ファイルを保存できません\n\nパーミッションを確認してください');
+          }
         }
       }
       
-      // 一時ディレクトリを削除
       await FileSystem.deleteAsync(tempDir, { idempotent: true });
-      
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       console.error("Error exporting all as ZIP:", error);
@@ -337,7 +372,6 @@ export default function MonthendScreen() {
   return (
     <ScreenContainer className="p-4">
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* ヘッダー */}
         <View className="flex-row items-center gap-2 mb-4">
           <Pressable onPress={() => router.back()} style={({ pressed }) => [pressed && { opacity: 0.7 }]}>
             <Text className="text-2xl">←</Text>
@@ -345,13 +379,11 @@ export default function MonthendScreen() {
           <Text className="text-2xl font-bold text-foreground">月末処理</Text>
         </View>
 
-        {/* 現在の月 */}
         <View className="bg-primary/10 rounded-lg p-4 mb-6 border border-primary">
           <Text className="text-sm text-muted mb-1">処理対象月</Text>
           <Text className="text-2xl font-bold text-primary">{currentMonth}</Text>
         </View>
 
-        {/* 月末確定 */}
         <View className="mb-4">
           <Text className="text-sm font-semibold text-foreground mb-2">1. 月末確定</Text>
           <View className="bg-surface rounded-lg p-4 mb-3 border border-border">
@@ -373,7 +405,6 @@ export default function MonthendScreen() {
           </View>
         </View>
 
-        {/* 翌月繰越 */}
         <View className="mb-4">
           <Text className="text-sm font-semibold text-foreground mb-2">2. 翌月繰越</Text>
           <View className="bg-surface rounded-lg p-4 mb-3 border border-border">
@@ -395,13 +426,11 @@ export default function MonthendScreen() {
           </View>
         </View>
 
-        {/* 期間指定 */}
         <View className="mb-6">
           <Text className="text-sm font-semibold text-foreground mb-2">3. 期間指定</Text>
           <View className="bg-surface rounded-lg p-4 mb-3 border border-border">
             <Text className="text-sm text-muted mb-3">集計対象期間を指定してください</Text>
             
-            {/* 開始日 */}
             <View className="mb-4">
               <Text className="text-xs text-muted mb-1">開始日</Text>
               <Pressable
@@ -418,7 +447,6 @@ export default function MonthendScreen() {
               </Pressable>
             </View>
             
-            {/* 終了日 */}
             <View className="mb-3">
               <Text className="text-xs text-muted mb-1">終了日</Text>
               <Pressable
@@ -437,11 +465,9 @@ export default function MonthendScreen() {
           </View>
         </View>
 
-        {/* CSV出力 */}
         <View className="mb-6">
           <Text className="text-sm font-semibold text-foreground mb-2">4. CSV出力</Text>
 
-          {/* 月末在庫集計 */}
           <View className="bg-surface rounded-lg p-4 mb-3 border border-border">
             <Text className="text-sm font-semibold text-foreground mb-2">月末在庫集計</Text>
             <Text className="text-xs text-muted mb-3">
@@ -465,7 +491,6 @@ export default function MonthendScreen() {
             </Pressable>
           </View>
 
-          {/* 出庫履歴 */}
           <View className="bg-surface rounded-lg p-4 mb-3 border border-border">
             <Text className="text-sm font-semibold text-foreground mb-2">出庫履歴</Text>
             <Text className="text-xs text-muted mb-3">
@@ -489,7 +514,6 @@ export default function MonthendScreen() {
             </Pressable>
           </View>
 
-          {/* 入庫履歴 */}
           <View className="bg-surface rounded-lg p-4 mb-3 border border-border">
             <Text className="text-sm font-semibold text-foreground mb-2">入庫履歴</Text>
             <Text className="text-xs text-muted mb-3">
@@ -513,7 +537,6 @@ export default function MonthendScreen() {
             </Pressable>
           </View>
 
-          {/* 一括ZIPダウンロード */}
           <View className="bg-surface rounded-lg p-4 mb-3 border border-border border-2" style={{ borderColor: '#f59e0b' }}>
             <Text className="text-sm font-semibold text-foreground mb-2">📦 全ファイル一括ダウンロード</Text>
             <Text className="text-xs text-muted mb-3">
@@ -539,7 +562,6 @@ export default function MonthendScreen() {
         </View>
       </ScrollView>
 
-      {/* 開始日ピッカー */}
       {showStartDatePicker && Platform.OS === 'ios' && (
         <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#fff' }}>
           <DateTimePicker
@@ -559,7 +581,6 @@ export default function MonthendScreen() {
         />
       )}
 
-      {/* 終了日ピッカー */}
       {showEndDatePicker && Platform.OS === 'ios' && (
         <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#fff' }}>
           <DateTimePicker
