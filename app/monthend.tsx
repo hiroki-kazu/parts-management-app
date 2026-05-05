@@ -163,7 +163,9 @@ export default function MonthendScreen() {
       setIsProcessing(true);
       const csv = await exportOutboundRecordsAsCSV(startDate, endDate);
       const [year, month] = currentMonth.split('-');
-      const fileName = `出庫履歴_${year}年${parseInt(month)}月.csv`;
+      const startStr = startDate.toISOString().split('T')[0].split('-').slice(1).join('-');
+      const endStr = endDate.toISOString().split('T')[0].split('-').slice(1).join('-');
+      const fileName = `出庫履歴_${year}年${parseInt(month)}月_${startStr}～${endStr}.csv`;
       await exportCSVFile(csv, fileName);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
@@ -179,7 +181,9 @@ export default function MonthendScreen() {
       setIsProcessing(true);
       const csv = await exportInboundRecordsAsCSV(startDate, endDate);
       const [year, month] = currentMonth.split('-');
-      const fileName = `入庫履歴_${year}年${parseInt(month)}月.csv`;
+      const startStr = startDate.toISOString().split('T')[0].split('-').slice(1).join('-');
+      const endStr = endDate.toISOString().split('T')[0].split('-').slice(1).join('-');
+      const fileName = `入庫履歴_${year}年${parseInt(month)}月_${startStr}～${endStr}.csv`;
       await exportCSVFile(csv, fileName);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
@@ -195,7 +199,9 @@ export default function MonthendScreen() {
       setIsProcessing(true);
       const csv = await getMonthlyInventorySummary(currentMonth, startDate, endDate);
       const [year, month] = currentMonth.split('-');
-      const fileName = `在庫サマリー_${year}年${parseInt(month)}月.csv`;
+      const startStr = startDate.toISOString().split('T')[0].split('-').slice(1).join('-');
+      const endStr = endDate.toISOString().split('T')[0].split('-').slice(1).join('-');
+      const fileName = `在庫サマリー_${year}年${parseInt(month)}月_${startStr}～${endStr}.csv`;
       await exportCSVFile(csv, fileName);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
@@ -206,87 +212,122 @@ export default function MonthendScreen() {
     }
   };
 
-  const handleExportAllAsZip = async () => {
+  const handleExportAllAsFormat = async (format: 'json' | 'csv') => {
+    Alert.alert(
+      `全ファイルを${format.toUpperCase()}でエクスポート`,
+      `${format.toUpperCase()}形式で全ファイルをエクスポートします。よろしいですか？`,
+      [
+        { text: 'キャンセル', onPress: () => {} },
+        {
+          text: 'エクスポート',
+          onPress: async () => {
+            await performExportAll(format);
+          },
+        },
+      ]
+    );
+  };
+
+  const performExportAll = async (format: 'json' | 'csv') => {
     try {
       setIsProcessing(true);
       
-      if (Platform.OS === 'web') {
-        Alert.alert("注意", "Web環境ではZIP機能は使用できません。\n個別にCSVをダウンロードしてください。");
-        setIsProcessing(false);
-        return;
-      }
-      
-      console.log('Starting CSV export...');
+      console.log(`Starting ${format.toUpperCase()} export...`);
       const outboundCsv = await exportOutboundRecordsAsCSV(startDate, endDate);
       const inboundCsv = await exportInboundRecordsAsCSV(startDate, endDate);
       const inventoryCsv = await getMonthlyInventorySummary(currentMonth, startDate, endDate);
       
       if (!outboundCsv || !inboundCsv || !inventoryCsv) {
-        throw new Error('CSVデータが空です');
+        throw new Error('データが空です');
       }
       
-      const tempDir = `${FileSystem.cacheDirectory}monthly_export_${Date.now()}/`;
-      await FileSystem.makeDirectoryAsync(tempDir, { intermediates: true });
-      
-      const outboundFile = `${tempDir}outbound_${currentMonth}.csv`;
-      const inboundFile = `${tempDir}inbound_${currentMonth}.csv`;
-      const inventoryFile = `${tempDir}inventory_summary_${currentMonth}.csv`;
-      
-      await FileSystem.writeAsStringAsync(outboundFile, outboundCsv, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
-      await FileSystem.writeAsStringAsync(inboundFile, inboundCsv, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
-      await FileSystem.writeAsStringAsync(inventoryFile, inventoryCsv, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
-      
-      // JSON形式でエクスポート
       const [year, month] = currentMonth.split('-');
-      const jsonFileName = `月末処理_${year}年${parseInt(month)}月.json`;
-      const exportData = {
-        exportDate: new Date().toISOString(),
-        month: currentMonth,
-        outboundRecords: outboundCsv,
-        inboundRecords: inboundCsv,
-        inventorySummary: inventoryCsv,
-      };
+      const startStr = startDate.toISOString().split('T')[0].split('-').slice(1).join('-');
+      const endStr = endDate.toISOString().split('T')[0].split('-').slice(1).join('-');
+      const dateRange = `_${startStr}～${endStr}`;
       
-      const jsonContent = JSON.stringify(exportData, null, 2);
-      
-      // cacheDirectoryに保存（部品マスタのバックアップと同じ方法）
-      const jsonPath = `${FileSystem.cacheDirectory}${jsonFileName}`;
-      await FileSystem.writeAsStringAsync(jsonPath, jsonContent, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
-      
-      // MailComposerでメール送信
-      const isAvailable = await MailComposer.isAvailableAsync();
-      if (isAvailable) {
-        await MailComposer.composeAsync({
-          recipients: [],
-          subject: `部品在庫管理 月末処理 ${currentMonth}`,
-          body: "添付したファイルを使用してデータを保存できます。",
-          attachments: [jsonPath],
+      if (format === 'json') {
+        // JSON形式でエクスポート
+        const jsonFileName = `月末処理_${year}年${parseInt(month)}月${dateRange}.json`;
+        const exportData = {
+          exportDate: new Date().toISOString(),
+          month: currentMonth,
+          dateRange: { start: startStr, end: endStr },
+          outboundRecords: outboundCsv,
+          inboundRecords: inboundCsv,
+          inventorySummary: inventoryCsv,
+        };
+        
+        const jsonContent = JSON.stringify(exportData, null, 2);
+        const jsonPath = `${FileSystem.cacheDirectory}${jsonFileName}`;
+        await FileSystem.writeAsStringAsync(jsonPath, jsonContent, {
+          encoding: FileSystem.EncodingType.UTF8,
         });
+        
+        // MailComposerでメール送信
+        const isAvailable = await MailComposer.isAvailableAsync();
+        if (isAvailable) {
+          await MailComposer.composeAsync({
+            recipients: [],
+            subject: `部品在庫管理 月末処理 ${currentMonth}`,
+            body: "添付したファイルを使用してデータを保存できます。",
+            attachments: [jsonPath],
+          });
+        } else {
+          Alert.alert("エラー", "メール機能が利用できません");
+        }
+        
+        Alert.alert('保存完了', `${jsonFileName}がメールに添付されました。`);
       } else {
-        Alert.alert("エラー", "メール機能が利用できません");
+        // CSV形式でエクスポート
+        const tempDir = `${FileSystem.cacheDirectory}monthly_export_${Date.now()}/`;
+        await FileSystem.makeDirectoryAsync(tempDir, { intermediates: true });
+        
+        const outboundFile = `${tempDir}出庫履歴_${year}年${parseInt(month)}月${dateRange}.csv`;
+        const inboundFile = `${tempDir}入庫履歴_${year}年${parseInt(month)}月${dateRange}.csv`;
+        const inventoryFile = `${tempDir}在庫サマリー_${year}年${parseInt(month)}月${dateRange}.csv`;
+        
+        await FileSystem.writeAsStringAsync(outboundFile, outboundCsv, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+        await FileSystem.writeAsStringAsync(inboundFile, inboundCsv, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+        await FileSystem.writeAsStringAsync(inventoryFile, inventoryCsv, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+        
+        // MailComposerでメール送信
+        const isAvailable = await MailComposer.isAvailableAsync();
+        if (isAvailable) {
+          await MailComposer.composeAsync({
+            recipients: [],
+            subject: `部品在庫管理 月末処理 ${currentMonth}`,
+            body: "添付したファイルを使用してデータを保存できます。",
+            attachments: [outboundFile, inboundFile, inventoryFile],
+          });
+        } else {
+          Alert.alert("エラー", "メール機能が利用できません");
+        }
+        
+        Alert.alert('保存完了', '3つのCSVファイルがメールに添付されました。');
+        
+        // tempDirの削除
+        await FileSystem.deleteAsync(tempDir, { idempotent: true });
       }
       
-      Alert.alert('保存完了', `${jsonFileName}がメールに添付されました。`);
-      
-      // tempDirの削除
-      await FileSystem.deleteAsync(tempDir, { idempotent: true });
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
-      console.error("Error exporting all as JSON:", error);
+      console.error(`Error exporting all as ${format}:`, error);
       const errorMessage = error instanceof Error ? error.message : String(error);
-      Alert.alert("エラー", `JSONファイルの作成に失敗しました\n\n詳細: ${errorMessage}`);
+      Alert.alert("エラー", `${format.toUpperCase()}ファイルの作成に失敗しました
+
+詳細: ${errorMessage}`);
     } finally {
       setIsProcessing(false);
     }
   };
+
 
   return (
     <ScreenContainer className="p-4">
@@ -459,24 +500,42 @@ export default function MonthendScreen() {
           <View className="bg-surface rounded-lg p-4 mb-3 border border-border border-2" style={{ borderColor: '#f59e0b' }}>
             <Text className="text-sm font-semibold text-foreground mb-2">📦 全ファイル一括ダウンロード</Text>
             <Text className="text-xs text-muted mb-3">
-              3つのCSVファイルをZIPで圧縮してダウンロード
+              3つのファイルをJSON または CSV 形式でダウンロード
             </Text>
-            <Pressable
-              onPress={handleExportAllAsZip}
-              disabled={isProcessing}
-              style={(({ pressed }) => [{
-                backgroundColor: '#f59e0b',
-                borderRadius: 8,
-                paddingVertical: 12,
-                opacity: isProcessing ? 0.5 : (pressed ? 0.7 : 1),
-              }])}
-            >
-              {isProcessing ? (
-                <ActivityIndicator color="white" />
-              ) : (
-                <Text className="text-center text-white font-bold">全ファイルをZIPでダウンロード</Text>
-              )}
-            </Pressable>
+            <View className="gap-2">
+              <Pressable
+                onPress={() => handleExportAllAsFormat('json')}
+                disabled={isProcessing}
+                style={(({ pressed }) => [{
+                  backgroundColor: '#f59e0b',
+                  borderRadius: 8,
+                  paddingVertical: 12,
+                  opacity: isProcessing ? 0.5 : (pressed ? 0.7 : 1),
+                }])}
+              >
+                {isProcessing ? (
+                  <ActivityIndicator color="white" />
+                ) : (
+                  <Text className="text-center text-white font-bold">JSON形式でダウンロード</Text>
+                )}
+              </Pressable>
+              <Pressable
+                onPress={() => handleExportAllAsFormat('csv')}
+                disabled={isProcessing}
+                style={(({ pressed }) => [{
+                  backgroundColor: '#06b6d4',
+                  borderRadius: 8,
+                  paddingVertical: 12,
+                  opacity: isProcessing ? 0.5 : (pressed ? 0.7 : 1),
+                }])}
+              >
+                {isProcessing ? (
+                  <ActivityIndicator color="white" />
+                ) : (
+                  <Text className="text-center text-white font-bold">CSV形式でダウンロード</Text>
+                )}
+              </Pressable>
+            </View>
           </View>
         </View>
       </ScrollView>
