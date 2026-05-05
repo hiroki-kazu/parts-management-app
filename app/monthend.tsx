@@ -161,7 +161,7 @@ export default function MonthendScreen() {
   const handleExportOutbound = async () => {
     try {
       setIsProcessing(true);
-      const csv = await exportOutboundRecordsAsCSV();
+      const csv = await exportOutboundRecordsAsCSV(startDate, endDate);
       const [year, month] = currentMonth.split('-');
       const fileName = `出庫履歴_${year}年${parseInt(month)}月.csv`;
       await exportCSVFile(csv, fileName);
@@ -177,7 +177,7 @@ export default function MonthendScreen() {
   const handleExportInbound = async () => {
     try {
       setIsProcessing(true);
-      const csv = await exportInboundRecordsAsCSV();
+      const csv = await exportInboundRecordsAsCSV(startDate, endDate);
       const [year, month] = currentMonth.split('-');
       const fileName = `入庫履歴_${year}年${parseInt(month)}月.csv`;
       await exportCSVFile(csv, fileName);
@@ -193,7 +193,7 @@ export default function MonthendScreen() {
   const handleExportInventorySummary = async () => {
     try {
       setIsProcessing(true);
-      const csv = await getMonthlyInventorySummary(currentMonth);
+      const csv = await getMonthlyInventorySummary(currentMonth, startDate, endDate);
       const [year, month] = currentMonth.split('-');
       const fileName = `在庫サマリー_${year}年${parseInt(month)}月.csv`;
       await exportCSVFile(csv, fileName);
@@ -217,9 +217,9 @@ export default function MonthendScreen() {
       }
       
       console.log('Starting CSV export...');
-      const outboundCsv = await exportOutboundRecordsAsCSV();
-      const inboundCsv = await exportInboundRecordsAsCSV();
-      const inventoryCsv = await getMonthlyInventorySummary(currentMonth);
+      const outboundCsv = await exportOutboundRecordsAsCSV(startDate, endDate);
+      const inboundCsv = await exportInboundRecordsAsCSV(startDate, endDate);
+      const inventoryCsv = await getMonthlyInventorySummary(currentMonth, startDate, endDate);
       
       if (!outboundCsv || !inboundCsv || !inventoryCsv) {
         throw new Error('CSVデータが空です');

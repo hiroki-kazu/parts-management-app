@@ -510,11 +510,20 @@ export async function getMonthlySnapshots(): Promise<MonthlyInventorySnapshot[]>
 /**
  * CSV出力用：出庫履歴
  */
-export async function exportOutboundRecordsAsCSV(): Promise<string> {
+export async function exportOutboundRecordsAsCSV(startDate?: Date, endDate?: Date): Promise<string> {
   try {
     const records = await getOutboundRecords();
+    
+    // 期間フィルタリング
+    let filteredRecords = records;
+    if (startDate && endDate) {
+      const start = startDate.toISOString().split('T')[0];
+      const end = endDate.toISOString().split('T')[0];
+      filteredRecords = records.filter(r => r.date >= start && r.date <= end);
+    }
+    
     const header = "日付,伝票番号,顧客名,ナンバー,部品名,数量\n";
-    const rows = records
+    const rows = filteredRecords
       .map(
         (r) =>
           `${r.date},${r.voucherNumber},${r.customerName},${r.vehicleNumber},${r.partName},${r.quantity}`
@@ -530,11 +539,20 @@ export async function exportOutboundRecordsAsCSV(): Promise<string> {
 /**
  * CSV出力用：入庫履歴
  */
-export async function exportInboundRecordsAsCSV(): Promise<string> {
+export async function exportInboundRecordsAsCSV(startDate?: Date, endDate?: Date): Promise<string> {
   try {
     const records = await getInboundRecords();
+    
+    // 期間フィルタリング
+    let filteredRecords = records;
+    if (startDate && endDate) {
+      const start = startDate.toISOString().split('T')[0];
+      const end = endDate.toISOString().split('T')[0];
+      filteredRecords = records.filter(r => r.date >= start && r.date <= end);
+    }
+    
     const header = "日付,伝票番号,仕入先,部品名,数量\n";
-    const rows = records
+    const rows = filteredRecords
       .map((r) => `${r.date},${r.voucherNumber},${r.supplier},${r.partName},${r.quantity}`)
       .join("\n");
     return header + rows;
@@ -548,15 +566,22 @@ export async function exportInboundRecordsAsCSV(): Promise<string> {
 /**
  * 月別集計：出庫数・入庫数・在庫金額を集計
  */
-export async function getMonthlyInventorySummary(month: string): Promise<string> {
+export async function getMonthlyInventorySummary(month: string, startDate?: Date, endDate?: Date): Promise<string> {
   try {
     const parts = await getParts();
     const outboundRecords = await getOutboundRecords();
     const inboundRecords = await getInboundRecords();
 
-    // 月別フィルタリング
-    const monthOutbound = outboundRecords.filter((r) => r.date.startsWith(month));
-    const monthInbound = inboundRecords.filter((r) => r.date.startsWith(month));
+    // 期間フィルタリング
+    let monthOutbound = outboundRecords.filter((r) => r.date.startsWith(month));
+    let monthInbound = inboundRecords.filter((r) => r.date.startsWith(month));
+    
+    if (startDate && endDate) {
+      const start = startDate.toISOString().split('T')[0];
+      const end = endDate.toISOString().split('T')[0];
+      monthOutbound = monthOutbound.filter(r => r.date >= start && r.date <= end);
+      monthInbound = monthInbound.filter(r => r.date >= start && r.date <= end);
+    }
 
     // 部品ごとに集計
     const summary = parts.map((part) => {
