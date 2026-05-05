@@ -162,10 +162,13 @@ export default function MonthendScreen() {
     try {
       setIsProcessing(true);
       const csv = await exportOutboundRecordsAsCSV(startDate, endDate);
-      const [year, month] = currentMonth.split('-');
-      const startStr = startDate.toISOString().split('T')[0].split('-').slice(1).join('-');
-      const endStr = endDate.toISOString().split('T')[0].split('-').slice(1).join('-');
-      const fileName = `出庫履歴_${year}年${parseInt(month)}月_${startStr}～${endStr}.csv`;
+      const startYear = startDate.getFullYear();
+      const startMonth = String(startDate.getMonth() + 1).padStart(2, '0');
+      const startDay = String(startDate.getDate()).padStart(2, '0');
+      const endYear = endDate.getFullYear();
+      const endMonth = String(endDate.getMonth() + 1).padStart(2, '0');
+      const endDay = String(endDate.getDate()).padStart(2, '0');
+      const fileName = `出庫履歴_${startYear}年${parseInt(startMonth)}月${parseInt(startDay)}日～${endMonth}月${parseInt(endDay)}日.csv`;
       await exportCSVFile(csv, fileName);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
@@ -180,10 +183,13 @@ export default function MonthendScreen() {
     try {
       setIsProcessing(true);
       const csv = await exportInboundRecordsAsCSV(startDate, endDate);
-      const [year, month] = currentMonth.split('-');
-      const startStr = startDate.toISOString().split('T')[0].split('-').slice(1).join('-');
-      const endStr = endDate.toISOString().split('T')[0].split('-').slice(1).join('-');
-      const fileName = `入庫履歴_${year}年${parseInt(month)}月_${startStr}～${endStr}.csv`;
+      const startYear = startDate.getFullYear();
+      const startMonth = String(startDate.getMonth() + 1).padStart(2, '0');
+      const startDay = String(startDate.getDate()).padStart(2, '0');
+      const endYear = endDate.getFullYear();
+      const endMonth = String(endDate.getMonth() + 1).padStart(2, '0');
+      const endDay = String(endDate.getDate()).padStart(2, '0');
+      const fileName = `入庫履歴_${startYear}年${parseInt(startMonth)}月${parseInt(startDay)}日～${endMonth}月${parseInt(endDay)}日.csv`;
       await exportCSVFile(csv, fileName);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
@@ -198,10 +204,13 @@ export default function MonthendScreen() {
     try {
       setIsProcessing(true);
       const csv = await getMonthlyInventorySummary(currentMonth, startDate, endDate);
-      const [year, month] = currentMonth.split('-');
-      const startStr = startDate.toISOString().split('T')[0].split('-').slice(1).join('-');
-      const endStr = endDate.toISOString().split('T')[0].split('-').slice(1).join('-');
-      const fileName = `在庫サマリー_${year}年${parseInt(month)}月_${startStr}～${endStr}.csv`;
+      const startYear = startDate.getFullYear();
+      const startMonth = String(startDate.getMonth() + 1).padStart(2, '0');
+      const startDay = String(startDate.getDate()).padStart(2, '0');
+      const endYear = endDate.getFullYear();
+      const endMonth = String(endDate.getMonth() + 1).padStart(2, '0');
+      const endDay = String(endDate.getDate()).padStart(2, '0');
+      const fileName = `在庫サマリー_${startYear}年${parseInt(startMonth)}月${parseInt(startDay)}日～${endMonth}月${parseInt(endDay)}日.csv`;
       await exportCSVFile(csv, fileName);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {

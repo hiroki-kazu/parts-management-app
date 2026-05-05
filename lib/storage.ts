@@ -573,14 +573,18 @@ export async function getMonthlyInventorySummary(month: string, startDate?: Date
     const inboundRecords = await getInboundRecords();
 
     // 期間フィルタリング
-    let monthOutbound = outboundRecords.filter((r) => r.date.startsWith(month));
-    let monthInbound = inboundRecords.filter((r) => r.date.startsWith(month));
+    let monthOutbound = outboundRecords;
+    let monthInbound = inboundRecords;
     
     if (startDate && endDate) {
       const start = startDate.toISOString().split('T')[0];
       const end = endDate.toISOString().split('T')[0];
       monthOutbound = monthOutbound.filter(r => r.date >= start && r.date <= end);
       monthInbound = monthInbound.filter(r => r.date >= start && r.date <= end);
+    } else {
+      // 期間指定がない場合は当月のみ
+      monthOutbound = monthOutbound.filter((r) => r.date.startsWith(month));
+      monthInbound = monthInbound.filter((r) => r.date.startsWith(month));
     }
 
     // 部品ごとに集計
