@@ -11,7 +11,6 @@ import {
   Pressable,
   Alert,
   ActivityIndicator,
-  Share,
   Platform,
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
@@ -25,26 +24,14 @@ import {
 } from "@/lib/storage";
 import * as Haptics from "expo-haptics";
 import * as FileSystem from "expo-file-system/legacy";
-import * as Sharing from "expo-sharing";
+import * as MailComposer from "expo-mail-composer";
 
 import DateTimePicker from "@react-native-community/datetimepicker";
-import * as MediaLibrary from "expo-media-library";
-import JSZip from "jszip";
-import { Buffer } from "buffer";
-
-// JSZipの種類定義
-type JSZipInstance = InstanceType<typeof JSZip>;
 
 
-// Base64への変換ユーティリティ
-const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
-  const bytes = new Uint8Array(buffer);
-  let binary = '';
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return Buffer.from(binary, 'binary').toString('base64');
-};
+
+
+
 
 export default function MonthendScreen() {
   const router = useRouter();
@@ -55,22 +42,9 @@ export default function MonthendScreen() {
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
 
-  // メディアライブラリのパーミッション要求
+  // MailComposerの初期化
   useEffect(() => {
-    if (Platform.OS !== 'web') {
-      const requestPermissions = async () => {
-        try {
-          const { status } = await MediaLibrary.requestPermissionsAsync();
-          console.log('MediaLibrary permission status:', status);
-          if (status !== 'granted') {
-            console.warn('MediaLibrary permission not granted');
-          }
-        } catch (error) {
-          console.error('Error requesting MediaLibrary permissions:', error);
-        }
-      };
-      requestPermissions();
-    }
+    MailComposer.isAvailableAsync();
   }, []);
 
   const formatDate = (date: Date) => {
@@ -154,20 +128,26 @@ export default function MonthendScreen() {
         link.download = fileName;
         link.click();
       } else {
-        // Native (iOS/Android): ファイルをローカルに保存
-        const filePath = `${FileSystem.documentDirectory}${fileName}`;
+        // Native (iOS/Android): cacheDirectoryに保存
+        const filePath = `${FileSystem.cacheDirectory}${fileName}`;
         await FileSystem.writeAsStringAsync(filePath, csv, {
           encoding: FileSystem.EncodingType.UTF8,
         });
         
-        // Share APIで共有
-        await Share.share({
-          url: filePath,
-          title: fileName,
-          message: `${fileName}を保存してください`,
-        });
+        // MailComposerでメール送信
+        const isAvailable = await MailComposer.isAvailableAsync();
+        if (isAvailable) {
+          await MailComposer.composeAsync({
+            recipients: [],
+            subject: `部品在庫管理 ${fileName}`,
+            body: "添付したファイルを使用してデータを保存できます。",
+            attachments: [filePath],
+          });
+        } else {
+          Alert.alert("エラー", "メール機能が利用できません");
+        }
         
-        Alert.alert('保存完了', `${fileName}が共有されました。メールやクラウドストレージで保存してください。`);
+        Alert.alert('保存完了', `${fileName}がメールに添付されました。`);
       }
 
       return true;
@@ -271,22 +251,29 @@ export default function MonthendScreen() {
       
       const jsonContent = JSON.stringify(exportData, null, 2);
       
-      // ファイルシステムに保存
-      const jsonPath = `${FileSystem.documentDirectory}${jsonFileName}`;
+      // cacheDirectoryに保存（部品マスタのバックアップと同じ方法）
+      const jsonPath = `${FileSystem.cacheDirectory}${jsonFileName}`;
       await FileSystem.writeAsStringAsync(jsonPath, jsonContent, {
         encoding: FileSystem.EncodingType.UTF8,
       });
       
-      // Share APIで共有
-      await Share.share({
-        url: jsonPath,
-        title: jsonFileName,
-        message: `${jsonFileName}を保存してください`,
-      });
+      // MailComposerでメール送信
+      const isAvailable = await MailComposer.isAvailableAsync();
+      if (isAvailable) {
+        await MailComposer.composeAsync({
+          recipients: [],
+          subject: `部品在庫管理 月末処理 ${currentMonth}`,
+          body: "添付したファイルを使用してデータを保存できます。",
+          attachments: [jsonPath],
+        });
+      } else {
+        Alert.alert("エラー", "メール機能が利用できません");
+      }
       
-      Alert.alert('保存完了', `${jsonFileName}が共有されました。メールやクラウドストレージで保存してください。`);
+      Alert.alert('保存完了', `${jsonFileName}がメールに添付されました。`);
       
-      // tempDirの削除は不要（JSONを使用していないため）
+      // tempDirの削除
+      await FileSystem.deleteAsync(tempDir, { idempotent: true });
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       console.error("Error exporting all as JSON:", error);
