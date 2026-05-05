@@ -162,7 +162,8 @@ export default function MonthendScreen() {
     try {
       setIsProcessing(true);
       const csv = await exportOutboundRecordsAsCSV();
-      const fileName = `outbound_${currentMonth}.csv`;
+      const [year, month] = currentMonth.split('-');
+      const fileName = `出庫履歴_${year}年${parseInt(month)}月.csv`;
       await exportCSVFile(csv, fileName);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
@@ -177,7 +178,8 @@ export default function MonthendScreen() {
     try {
       setIsProcessing(true);
       const csv = await exportInboundRecordsAsCSV();
-      const fileName = `inbound_${currentMonth}.csv`;
+      const [year, month] = currentMonth.split('-');
+      const fileName = `入庫履歴_${year}年${parseInt(month)}月.csv`;
       await exportCSVFile(csv, fileName);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
@@ -192,7 +194,8 @@ export default function MonthendScreen() {
     try {
       setIsProcessing(true);
       const csv = await getMonthlyInventorySummary(currentMonth);
-      const fileName = `inventory_summary_${currentMonth}.csv`;
+      const [year, month] = currentMonth.split('-');
+      const fileName = `在庫サマリー_${year}年${parseInt(month)}月.csv`;
       await exportCSVFile(csv, fileName);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
@@ -240,7 +243,8 @@ export default function MonthendScreen() {
       });
       
       // JSON形式でエクスポート
-      const jsonFileName = `monthly_export_${currentMonth}.json`;
+      const [year, month] = currentMonth.split('-');
+      const jsonFileName = `月末処理_${year}年${parseInt(month)}月.json`;
       const exportData = {
         exportDate: new Date().toISOString(),
         month: currentMonth,
