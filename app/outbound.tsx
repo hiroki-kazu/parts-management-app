@@ -94,6 +94,9 @@ export default function OutboundScreen() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const scrollViewRef = useRef<ScrollView>(null);
   const quantityInputRef = useRef<TextInput>(null);
+  const voucherInputRef = useRef<TextInput>(null);
+  const vehicleInputRef = useRef<TextInput>(null);
+  const customerInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     loadParts();
@@ -303,7 +306,15 @@ export default function OutboundScreen() {
       className="flex-1"
     >
       <ScreenContainer className="p-4">
-        <ScrollView ref={scrollViewRef} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          ref={scrollViewRef}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          contentContainerStyle={{
+            paddingBottom: 200,
+          }}
+        >
           {/* ヘッダー */}
         <View className="flex-row items-center gap-2 mb-4">
           <Pressable onPress={() => router.back()} style={({ pressed }) => [pressed && { opacity: 0.7 }]}>
@@ -343,9 +354,17 @@ export default function OutboundScreen() {
         <View className="mb-4">
           <Text className="text-sm font-semibold text-foreground mb-2">伝票番号 *</Text>
           <TextInput
+            ref={voucherInputRef}
             placeholder="伝票番号を入力"
             value={form.voucherNumber}
             onChangeText={(text) => setForm({ ...form, voucherNumber: text })}
+            onFocus={() => {
+              setTimeout(() => {
+                voucherInputRef.current?.measure((x, y, width, height, pageX, pageY) => {
+                  scrollViewRef.current?.scrollTo({ y: pageY - 100, animated: true });
+                });
+              }, 100);
+            }}
             className="bg-surface border border-border rounded-lg px-4 py-3 text-foreground text-base"
             placeholderTextColor="#999"
           />
@@ -355,9 +374,17 @@ export default function OutboundScreen() {
         <View className="mb-4">
           <Text className="text-sm font-semibold text-foreground mb-2">ナンバー（下4桁） *</Text>
           <TextInput
+            ref={vehicleInputRef}
             placeholder="下4桁を入力"
             value={form.vehicleNumber}
             onChangeText={(text) => setForm({ ...form, vehicleNumber: text.slice(0, 4) })}
+            onFocus={() => {
+              setTimeout(() => {
+                vehicleInputRef.current?.measure((x, y, width, height, pageX, pageY) => {
+                  scrollViewRef.current?.scrollTo({ y: pageY - 100, animated: true });
+                });
+              }, 100);
+            }}
             maxLength={4}
             keyboardType="numeric"
             className="bg-surface border border-border rounded-lg px-4 py-3 text-foreground text-base"
@@ -369,9 +396,17 @@ export default function OutboundScreen() {
         <View className="mb-4">
           <Text className="text-sm font-semibold text-foreground mb-2">顧客名 *</Text>
           <TextInput
+            ref={customerInputRef}
             placeholder="顧客名を入力"
             value={form.customerName}
             onChangeText={(text) => setForm({ ...form, customerName: text })}
+            onFocus={() => {
+              setTimeout(() => {
+                customerInputRef.current?.measure((x, y, width, height, pageX, pageY) => {
+                  scrollViewRef.current?.scrollTo({ y: pageY - 100, animated: true });
+                });
+              }, 100);
+            }}
             className="bg-surface border border-border rounded-lg px-4 py-3 text-foreground text-base"
             placeholderTextColor="#999"
           />
@@ -455,6 +490,13 @@ export default function OutboundScreen() {
               ref={quantityInputRef}
               value={quantityInputText}
               onChangeText={handleQuantityTextChange}
+              onFocus={() => {
+                setTimeout(() => {
+                  quantityInputRef.current?.measure((x, y, width, height, pageX, pageY) => {
+                    scrollViewRef.current?.scrollTo({ y: pageY - 100, animated: true });
+                  });
+                }, 100);
+              }}
               keyboardType="numbers-and-punctuation"
               className="flex-1 bg-surface border border-border rounded-lg px-4 py-3 text-center text-foreground text-base"
               placeholderTextColor="#999"

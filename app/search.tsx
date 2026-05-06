@@ -49,6 +49,8 @@ export default function SearchScreen() {
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [editingRecord, setEditingRecord] = useState<OutboundRecord | null>(null);
   const [editQuantity, setEditQuantity] = useState("");
+  const [editDate, setEditDate] = useState<Date>(new Date());
+  const [showEditDatePicker, setShowEditDatePicker] = useState(false);
   const [selectedRecordIds, setSelectedRecordIds] = useState<Set<string>>(new Set());
 
   const handleSearch = async () => {
@@ -105,6 +107,7 @@ export default function SearchScreen() {
       const outboundRecord = record as OutboundRecord;
       setEditingRecord(outboundRecord);
       setEditQuantity(String(outboundRecord.quantity));
+      setEditDate(new Date(outboundRecord.date));
       setIsEditModalVisible(true);
     }
   };
@@ -455,8 +458,24 @@ export default function SearchScreen() {
 
                       <View className="mb-4 bg-surface rounded-lg p-3 border border-border">
                         <Text className="text-sm text-muted mb-1">日付</Text>
-                        <Text className="text-lg font-semibold text-foreground">{editingRecord.date}</Text>
+                        <Pressable
+                          onPress={() => setShowEditDatePicker(true)}
+                          className="py-2"
+                        >
+                          <Text className="text-lg font-semibold text-primary">{editDate.toLocaleDateString()}</Text>
+                        </Pressable>
                       </View>
+                      {showEditDatePicker && (
+                        <DateTimePicker
+                          value={editDate}
+                          mode="date"
+                          display="default"
+                          onChange={(event, date) => {
+                            if (date) setEditDate(date);
+                            setShowEditDatePicker(false);
+                          }}
+                        />
+                      )}
 
                       <View className="mb-4 bg-surface rounded-lg p-3 border border-border">
                         <Text className="text-sm text-muted mb-1">伝票番号</Text>
@@ -477,7 +496,10 @@ export default function SearchScreen() {
 
                       <View className="flex-row gap-2 mt-6">
                         <Pressable
-                          onPress={() => setIsEditModalVisible(false)}
+                          onPress={() => {
+                            setIsEditModalVisible(false);
+                            setShowEditDatePicker(false);
+                          }}
                           className="flex-1 bg-surface border border-border rounded-lg py-3"
                           style={({ pressed }) => [pressed && { opacity: 0.7 }]}
                         >

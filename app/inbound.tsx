@@ -3,7 +3,7 @@
  * 部品仕入時の入力フロー
  */
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   ScrollView,
   Text,
@@ -86,6 +86,10 @@ export default function InboundScreen() {
   const [quantityInputText, setQuantityInputText] = useState("1");
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const scrollViewRef = React.useRef<ScrollView>(null);
+  const quantityInputRef = React.useRef<TextInput>(null);
+  const voucherInputRef = React.useRef<TextInput>(null);
+  const supplierInputRef = React.useRef<TextInput>(null);
 
   useEffect(() => {
     loadParts();
@@ -231,7 +235,15 @@ export default function InboundScreen() {
       className="flex-1"
     >
       <ScreenContainer className="p-4">
-        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          ref={scrollViewRef}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          contentContainerStyle={{
+            paddingBottom: 200,
+          }}
+        >
           {/* ヘッダー */}
           <View className="flex-row items-center gap-2 mb-4">
           <Pressable onPress={() => router.back()} style={({ pressed }) => [pressed && { opacity: 0.7 }]}>
@@ -271,9 +283,17 @@ export default function InboundScreen() {
         <View className="mb-4">
           <Text className="text-sm font-semibold text-foreground mb-2">伝票番号 *</Text>
           <TextInput
+            ref={voucherInputRef}
             placeholder="伝票番号を入力"
             value={form.voucherNumber}
             onChangeText={(text) => setForm({ ...form, voucherNumber: text })}
+            onFocus={() => {
+              setTimeout(() => {
+                voucherInputRef.current?.measure((x, y, width, height, pageX, pageY) => {
+                  scrollViewRef.current?.scrollTo({ y: pageY - 100, animated: true });
+                });
+              }, 100);
+            }}
             className="bg-surface border border-border rounded-lg px-4 py-3 text-foreground text-base"
             placeholderTextColor="#999"
           />
@@ -283,9 +303,17 @@ export default function InboundScreen() {
         <View className="mb-4">
           <Text className="text-sm font-semibold text-foreground mb-2">仕入先 *</Text>
           <TextInput
+            ref={supplierInputRef}
             placeholder="仕入先を入力"
             value={form.supplier}
             onChangeText={(text) => setForm({ ...form, supplier: text })}
+            onFocus={() => {
+              setTimeout(() => {
+                supplierInputRef.current?.measure((x, y, width, height, pageX, pageY) => {
+                  scrollViewRef.current?.scrollTo({ y: pageY - 100, animated: true });
+                });
+              }, 100);
+            }}
             className="bg-surface border border-border rounded-lg px-4 py-3 text-foreground text-base"
             placeholderTextColor="#999"
           />
@@ -341,8 +369,16 @@ export default function InboundScreen() {
               <Text className="text-lg font-bold text-foreground">−</Text>
             </Pressable>
             <TextInput
+              ref={quantityInputRef}
               value={quantityInputText}
               onChangeText={handleQuantityTextChange}
+              onFocus={() => {
+                setTimeout(() => {
+                  quantityInputRef.current?.measure((x, y, width, height, pageX, pageY) => {
+                    scrollViewRef.current?.scrollTo({ y: pageY - 100, animated: true });
+                  });
+                }, 100);
+              }}
               keyboardType="numbers-and-punctuation"
               className="flex-1 bg-surface border border-border rounded-lg px-4 py-3 text-center text-foreground text-base"
               placeholderTextColor="#999"
