@@ -221,10 +221,11 @@ export default function MonthendScreen() {
     }
   };
 
-  const handleExportAllAsFormat = async (format: 'json' | 'csv') => {
+  const handleExportAllAsFormat = async (format: 'json' | 'csv' | 'zip') => {
+    const formatLabel = format === 'zip' ? 'ZIP' : format.toUpperCase();
     Alert.alert(
-      `全ファイルを${format.toUpperCase()}でエクスポート`,
-      `${format.toUpperCase()}形式で全ファイルをエクスポートします。よろしいですか？`,
+      `全ファイルを${formatLabel}でエクスポート`,
+      `${formatLabel}形式で全ファイルをエクスポートします。よろしいですか？`,
       [
         { text: 'キャンセル', onPress: () => {} },
         {
@@ -237,7 +238,7 @@ export default function MonthendScreen() {
     );
   };
 
-  const performExportAll = async (format: 'json' | 'csv') => {
+  const performExportAll = async (format: 'json' | 'csv' | 'zip') => {
     try {
       setIsProcessing(true);
       
@@ -287,7 +288,7 @@ export default function MonthendScreen() {
         }
         
         Alert.alert('保存完了', `${jsonFileName}がメールに添付されました。`);
-      } else {
+      } else if (format === 'csv') {
         // CSV形式でエクスポート
         const tempDir = `${FileSystem.cacheDirectory}monthly_export_${Date.now()}/`;
         await FileSystem.makeDirectoryAsync(tempDir, { intermediates: true });
@@ -323,6 +324,39 @@ export default function MonthendScreen() {
         
         // tempDirの削除
         await FileSystem.deleteAsync(tempDir, { idempotent: true });
+      } else if (format === 'zip') {
+        // ZIP形式でエクスポート
+        const JSZip = require('jszip');
+        const zip = new JSZip();
+        
+        // ZIPにCSVファイルを追加
+        zip.file(`出庫履歴_${year}年${parseInt(month)}月${dateRange}.csv`, outboundCsv);
+        zip.file(`入庫履歴_${year}年${parseInt(month)}月${dateRange}.csv`, inboundCsv);
+        zip.file(`在庫サマリー_${year}年${parseInt(month)}月${dateRange}.csv`, inventoryCsv);
+        
+        // ZIPファイルを生成
+        const zipData = await zip.generateAsync({ type: 'base64' });
+        const zipFileName = `月末処理_${year}年${parseInt(month)}月${dateRange}.zip`;
+        const zipPath = `${FileSystem.cacheDirectory}${zipFileName}`;
+        
+        await FileSystem.writeAsStringAsync(zipPath, zipData, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        
+        // MailComposerでメール送信
+        const isAvailable = await MailComposer.isAvailableAsync();
+        if (isAvailable) {
+          await MailComposer.composeAsync({
+            recipients: [],
+            subject: `部品在庫管理 月末処理 ${currentMonth}`,
+            body: '添付したZIPファイルを使用してデータを保存できます。',
+            attachments: [zipPath],
+          });
+        } else {
+          Alert.alert('エラー', 'メール機能が利用できません');
+        }
+        
+        Alert.alert('保存完了', `${zipFileName}がメールに添付されました。`);
       }
       
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -509,7 +543,7 @@ export default function MonthendScreen() {
           <View className="bg-surface rounded-lg p-4 mb-3 border border-border border-2" style={{ borderColor: '#f59e0b' }}>
             <Text className="text-sm font-semibold text-foreground mb-2">📦 全ファイル一括ダウンロード</Text>
             <Text className="text-xs text-muted mb-3">
-              3つのファイルをJSON または CSV 形式でダウンロード
+              3つのファイルをJSON、CSV、またZIP形式でダウンロード
             </Text>
             <View className="gap-2">
               <Pressable
@@ -542,6 +576,22 @@ export default function MonthendScreen() {
                   <ActivityIndicator color="white" />
                 ) : (
                   <Text className="text-center text-white font-bold">CSV形式でダウンロード</Text>
+                )}
+              </Pressable>
+              <Pressable
+                onPress={() => handleExportAllAsFormat('zip')}
+                disabled={isProcessing}
+                style={(({ pressed }) => [{
+                  backgroundColor: '#8b5cf6',
+                  borderRadius: 8,
+                  paddingVertical: 12,
+                  opacity: isProcessing ? 0.5 : (pressed ? 0.7 : 1),
+                }])}
+              >
+                {isProcessing ? (
+                  <ActivityIndicator color="white" />
+                ) : (
+                  <Text className="text-center text-white font-bold">ZIP形式でダウンロード</Text>
                 )}
               </Pressable>
             </View>
