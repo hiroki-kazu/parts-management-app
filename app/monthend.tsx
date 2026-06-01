@@ -1,6 +1,6 @@
 /**
- * 月末処理画面
- * 月末在庫確定・翌月繰越・CSV出力
+ * データ処理画面
+ * 期間指定エクスポート・部品リストCSVテンプレート・部品リストCSVインポート
  */
 
 import React, { useState, useEffect } from "react";
@@ -21,19 +21,22 @@ import {
   exportOutboundRecordsAsCSV,
   exportInboundRecordsAsCSV,
   getMonthlyInventorySummary,
+  generatePartsCSVTemplate,
+  importPartsFromCSV,
 } from "@/lib/storage";
 import * as Haptics from "expo-haptics";
 import * as FileSystem from "expo-file-system/legacy";
 import * as MailComposer from "expo-mail-composer";
 
 import DateTimePicker from "@react-native-community/datetimepicker";
+import * as DocumentPicker from "expo-document-picker";
 
 
 
 
 
 
-export default function MonthendScreen() {
+export default function DataProcessingScreen() {
   const router = useRouter();
   const [isProcessing, setIsProcessing] = useState(false);
   const currentMonth = getCurrentMonth();
@@ -69,56 +72,95 @@ export default function MonthendScreen() {
     }
   };
 
-  const handleMonthlyClosing = async () => {
-    Alert.alert(
-      "月末確定",
-      `${currentMonth}の在庫を確定します。よろしいですか？`,
-      [
-        { text: "キャンセル", onPress: () => {} },
-        {
-          text: "確定",
-          onPress: async () => {
-            try {
-              setIsProcessing(true);
-              await saveMonthlySnapshot(currentMonth);
-              await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              Alert.alert("成功", `${currentMonth}の在庫確定が完了しました`);
-            } catch (error) {
-              console.error("Error closing month:", error);
-              Alert.alert("エラー", "月末確定に失敗しました");
-            } finally {
-              setIsProcessing(false);
-            }
-          },
-        },
-      ]
-    );
+  const handleSendTemplate = async () => {
+    try {
+      setIsProcessing(true);
+      const templateCsv = await generatePartsCSVTemplate();
+      
+      // UTF-8 BOMを追加
+      const BOM = '\uFEFF';
+      const csvWithBOM = BOM + templateCsv;
+      
+      // テンプレートファイルを作成
+      const fileName = `部品テンプレート_${new Date().toISOString().split('T')[0]}.csv`;
+      const filePath = `${FileSystem.cacheDirectory}${fileName}`;
+      
+      await FileSystem.writeAsStringAsync(filePath, csvWithBOM, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      
+      // MailComposerでメール送信
+      const isAvailable = await MailComposer.isAvailableAsync();
+      if (isAvailable) {
+        await MailComposer.composeAsync({
+          recipients: [],
+          subject: '部品リスト インポートテンプレート',
+          body: '添付したCSVテンプレートを使用して、部品情報を追加してください。',
+          attachments: [filePath],
+        });
+      } else {
+        Alert.alert('エラー', 'メール機能が利用できません');
+      }
+      
+      Alert.alert('送信完了', `${fileName}がメールに添付されました。`);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      console.error('Error sending template:', error);
+      Alert.alert('エラー', 'テンプレート送信に失敗しました');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
-  const handleCarryover = () => {
-    Alert.alert(
-      "翌月繰越",
-      `${currentMonth}の在庫を翌月に繰越します。\n（現在の在庫数が翌月の初期在庫になります）`,
-      [
-        { text: "キャンセル", onPress: () => {} },
-        {
-          text: "繰越",
-          onPress: async () => {
-            try {
-              setIsProcessing(true);
-              await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              Alert.alert("成功", "翌月への繰越が完了しました");
-            } catch (error) {
-              console.error("Error carrying over:", error);
-              Alert.alert("エラー", "翌月繰越に失敗しました");
-            } finally {
-              setIsProcessing(false);
-            }
-          },
-        },
-      ]
-    );
+  const handleImportCSV = async () => {
+    try {
+      setIsProcessing(true);
+      
+      // ドキュメントピッカーを起動
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'text/csv',
+      });
+      
+      if (result.canceled) {
+        setIsProcessing(false);
+        return;
+      }
+      
+      // ファイルを読み込み
+      const fileUri = result.assets[0].uri;
+      const csvContent = await FileSystem.readAsStringAsync(fileUri, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      
+      // BOMを削除
+      const cleanedContent = csvContent.replace(/^\uFEFF/, '');
+      
+      // CSVをインポート
+      const importResult = await importPartsFromCSV(cleanedContent);
+      
+      // 結果を表示
+      let message = `成功: ${importResult.success}件`;
+      if (importResult.failed > 0) {
+        message += `\n失敗: ${importResult.failed}件`;
+        if (importResult.errors.length > 0) {
+          message += `\n\nエラー:\n${importResult.errors.slice(0, 3).join('\n')}`;
+          if (importResult.errors.length > 3) {
+            message += `\n他${importResult.errors.length - 3}件...`;
+          }
+        }
+      }
+      
+      Alert.alert('インポート完了', message);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      console.error('Error importing CSV:', error);
+      Alert.alert('エラー', 'CSVインポートに失敗しました');
+    } finally {
+      setIsProcessing(false);
+    }
   };
+
+
 
 
 
@@ -219,58 +261,11 @@ export default function MonthendScreen() {
           <Pressable onPress={() => router.back()} style={({ pressed }) => [pressed && { opacity: 0.7 }]}>
             <Text className="text-2xl">←</Text>
           </Pressable>
-          <Text className="text-2xl font-bold text-foreground">月末処理</Text>
-        </View>
-
-        <View className="bg-primary/10 rounded-lg p-4 mb-6 border border-primary">
-          <Text className="text-sm text-muted mb-1">処理対象月</Text>
-          <Text className="text-2xl font-bold text-primary">{currentMonth}</Text>
-        </View>
-
-        <View className="mb-4">
-          <Text className="text-sm font-semibold text-foreground mb-2">1. 月末確定</Text>
-          <View className="bg-surface rounded-lg p-4 mb-3 border border-border">
-            <Text className="text-sm text-muted mb-3">
-              現在の在庫数を月末在庫として確定します。
-            </Text>
-            <Pressable
-              onPress={handleMonthlyClosing}
-              disabled={isProcessing}
-              className="bg-primary rounded-lg py-3"
-              style={({ pressed }) => [pressed && { opacity: 0.7 }]}
-            >
-              {isProcessing ? (
-                <ActivityIndicator color="white" />
-              ) : (
-                <Text className="text-center text-white font-bold">月末確定</Text>
-              )}
-            </Pressable>
-          </View>
-        </View>
-
-        <View className="mb-4">
-          <Text className="text-sm font-semibold text-foreground mb-2">2. 翌月繰越</Text>
-          <View className="bg-surface rounded-lg p-4 mb-3 border border-border">
-            <Text className="text-sm text-muted mb-3">
-              現在の在庫数を翌月の初期在庫として繰越します。
-            </Text>
-            <Pressable
-              onPress={handleCarryover}
-              disabled={isProcessing}
-              className="bg-primary rounded-lg py-3"
-              style={({ pressed }) => [pressed && { opacity: 0.7 }]}
-            >
-              {isProcessing ? (
-                <ActivityIndicator color="white" />
-              ) : (
-                <Text className="text-center text-white font-bold">翌月繰越</Text>
-              )}
-            </Pressable>
-          </View>
+          <Text className="text-2xl font-bold text-foreground">データ処理</Text>
         </View>
 
         <View className="mb-6">
-          <Text className="text-sm font-semibold text-foreground mb-2">3. 期間指定</Text>
+          <Text className="text-sm font-semibold text-foreground mb-2">1. 期間指定エクスポート</Text>
           <View className="bg-surface rounded-lg p-4 mb-3 border border-border">
             <Text className="text-sm text-muted mb-3">集計対象期間を指定してください</Text>
             
@@ -309,7 +304,57 @@ export default function MonthendScreen() {
         </View>
 
         <View className="mb-6">
-          <Text className="text-sm font-semibold text-foreground mb-2">4. 全ファイル一括ダウンロード</Text>
+          <Text className="text-sm font-semibold text-foreground mb-2">2. 部品リストCSV</Text>
+
+          <View className="bg-surface rounded-lg p-4 mb-3 border border-border">
+            <Text className="text-sm font-semibold text-foreground mb-2">📄 テンプレートをメール送信</Text>
+            <Text className="text-xs text-muted mb-3">
+              部品マスタのテンプレートCSVをメール送信します
+            </Text>
+            <Pressable
+              onPress={handleSendTemplate}
+              disabled={isProcessing}
+              style={(({ pressed }) => [{
+                backgroundColor: '#06b6d4',
+                borderRadius: 8,
+                paddingVertical: 12,
+                opacity: isProcessing ? 0.5 : (pressed ? 0.7 : 1),
+              }])}
+            >
+              {isProcessing ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <Text className="text-center text-white font-bold">テンプレートを送信</Text>
+              )}
+            </Pressable>
+          </View>
+
+          <View className="bg-surface rounded-lg p-4 mb-3 border border-border">
+            <Text className="text-sm font-semibold text-foreground mb-2">📁 CSVをインポート</Text>
+            <Text className="text-xs text-muted mb-3">
+              部品リストCSVを選択して一括追加
+            </Text>
+            <Pressable
+              onPress={handleImportCSV}
+              disabled={isProcessing}
+              style={(({ pressed }) => [{
+                backgroundColor: '#10b981',
+                borderRadius: 8,
+                paddingVertical: 12,
+                opacity: isProcessing ? 0.5 : (pressed ? 0.7 : 1),
+              }])}
+            >
+              {isProcessing ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <Text className="text-center text-white font-bold">CSVを選択してインポート</Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+
+        <View className="mb-6">
+          <Text className="text-sm font-semibold text-foreground mb-2">3. 期間指定エクスポート</Text>
 
           <View className="bg-surface rounded-lg p-4 mb-3 border border-border border-2" style={{ borderColor: '#8b5cf6' }}>
             <Text className="text-sm font-semibold text-foreground mb-2">📦 ZIP形式でダウンロード</Text>

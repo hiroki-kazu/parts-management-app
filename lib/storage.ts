@@ -833,3 +833,25 @@ export async function getOutboundRecordByVoucherNumber(voucherNumber: string): P
     return null;
   }
 }
+
+
+/**
+ * 部品リストCSVテンプレートを生成
+ * テンプレート形式: 部品名,品番,単価,最低在庫数,小数対応
+ */
+export async function generatePartsCSVTemplate(): Promise<string> {
+  try {
+    const header = "部品名,品番,単価,最低在庫数,小数対応\n";
+    const exampleRows = [
+      "エンジンオイル,EO-001,5000,10,○",
+      "エアフィルター,AF-001,2000,5,×",
+      "バッテリー,BAT-001,15000,2,×",
+    ];
+    
+    const rows = exampleRows.join("\n");
+    return header + rows;
+  } catch (error) {
+    console.error("Error generating parts CSV template:", error);
+    throw error;
+  }
+}
