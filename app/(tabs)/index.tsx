@@ -54,8 +54,8 @@ const MENU_ITEMS: MenuItem[] = [
   },
   {
     id: "monthend",
-    title: "月末処理",
-    subtitle: "確定・繰越・CSV出力",
+    title: "データ処理",
+    subtitle: "期間指定・テンプレート・インポート",
     route: "/monthend",
     color: "bg-red-500",
     icon: "📅",

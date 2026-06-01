@@ -242,10 +242,20 @@ export default function InventoryScreen() {
   );
 
   const renderInventoryItem = ({ item }: { item: InventoryItem }) => (
-    <View className="bg-surface rounded-lg p-4 mb-3 border border-border">
+    <View className={`rounded-lg p-4 mb-3 border-2 ${
+      item.isNegative ? 'bg-error/20 border-error' : 
+      item.isLow ? 'bg-warning/10 border-warning' : 
+      'bg-surface border-border'
+    }`}>
       <View className="flex-row justify-between items-start mb-2">
         <View className="flex-1">
-          <Text className="text-lg font-semibold text-foreground">{item.part.name}</Text>
+          <Text className={`text-lg font-semibold ${
+            item.isNegative ? 'text-error' : 
+            item.isLow ? 'text-warning' : 
+            'text-foreground'
+          }`}>
+            {item.isNegative ? '🚨 ' : item.isLow ? '⚠️ ' : ''}{item.part.name}
+          </Text>
           <Text className="text-sm text-muted">品番: {item.part.partNumber}</Text>
         </View>
         <View className={`${getStatusColor(item.status)} rounded-full px-3 py-1`}>
@@ -282,17 +292,23 @@ export default function InventoryScreen() {
       </View>
 
       {item.isNegative && (
-        <View className="mt-3 bg-error/10 rounded p-2">
-          <Text className="text-xs text-error font-semibold">
-            ⚠ マイナス在庫です。確認が必要です。
+        <View className="mt-3 bg-error rounded-lg p-3 border-2 border-error">
+          <Text className="text-sm text-white font-bold">
+            🚨 緊急: マイナス在庫です
+          </Text>
+          <Text className="text-xs text-white/90 mt-1">
+            在庫数が負の値になっています。即座に確認・修正が必要です。
           </Text>
         </View>
       )}
 
       {item.isLow && !item.isNegative && (
-        <View className="mt-3 bg-warning/10 rounded p-2">
-          <Text className="text-xs text-warning font-semibold">
-            📢 発注推奨: 最低在庫以下です
+        <View className="mt-3 bg-warning rounded-lg p-3 border-2 border-warning">
+          <Text className="text-sm text-white font-bold">
+            ⚠️ 警告: 最低在庫以下
+          </Text>
+          <Text className="text-xs text-white/90 mt-1">
+            発注が必要です。最低在庫数: {item.part.minStock}個
           </Text>
         </View>
       )}
