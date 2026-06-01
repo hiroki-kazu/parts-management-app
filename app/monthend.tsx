@@ -120,125 +120,27 @@ export default function MonthendScreen() {
     );
   };
 
-  const exportCSVFile = async (csv: string, fileName: string) => {
-    try {
-      if (Platform.OS === 'web') {
-        const link = document.createElement('a');
-        link.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
-        link.download = fileName;
-        link.click();
-      } else {
-        // Native (iOS/Android): cacheDirectoryに保存
-        const filePath = `${FileSystem.cacheDirectory}${fileName}`;
-        await FileSystem.writeAsStringAsync(filePath, csv, {
-          encoding: FileSystem.EncodingType.UTF8,
-        });
-        
-        // MailComposerでメール送信
-        const isAvailable = await MailComposer.isAvailableAsync();
-        if (isAvailable) {
-          await MailComposer.composeAsync({
-            recipients: [],
-            subject: `部品在庫管理 ${fileName}`,
-            body: "添付したファイルを使用してデータを保存できます。",
-            attachments: [filePath],
-          });
-        } else {
-          Alert.alert("エラー", "メール機能が利用できません");
-        }
-        
-        Alert.alert('保存完了', `${fileName}がメールに添付されました。`);
-      }
 
-      return true;
-    } catch (error) {
-      console.error("Error exporting CSV:", error);
-      Alert.alert('エラー', 'ファイルの作成に失敗しました');
-      throw error;
-    }
-  };
 
-  const handleExportOutbound = async () => {
-    try {
-      setIsProcessing(true);
-      const csv = await exportOutboundRecordsAsCSV(startDate, endDate);
-      const startYear = startDate.getFullYear();
-      const startMonth = String(startDate.getMonth() + 1).padStart(2, '0');
-      const startDay = String(startDate.getDate()).padStart(2, '0');
-      const endYear = endDate.getFullYear();
-      const endMonth = String(endDate.getMonth() + 1).padStart(2, '0');
-      const endDay = String(endDate.getDate()).padStart(2, '0');
-      const fileName = `出庫履歴_${startYear}年${parseInt(startMonth)}月${parseInt(startDay)}日～${endMonth}月${parseInt(endDay)}日.csv`;
-      await exportCSVFile(csv, fileName);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (error) {
-      console.error("Error exporting outbound records:", error);
-      Alert.alert("エラー", "出庫履歴のエクスポートに失敗しました");
-    } finally {
-      setIsProcessing(false);
-    }
-  };
 
-  const handleExportInbound = async () => {
-    try {
-      setIsProcessing(true);
-      const csv = await exportInboundRecordsAsCSV(startDate, endDate);
-      const startYear = startDate.getFullYear();
-      const startMonth = String(startDate.getMonth() + 1).padStart(2, '0');
-      const startDay = String(startDate.getDate()).padStart(2, '0');
-      const endYear = endDate.getFullYear();
-      const endMonth = String(endDate.getMonth() + 1).padStart(2, '0');
-      const endDay = String(endDate.getDate()).padStart(2, '0');
-      const fileName = `入庫履歴_${startYear}年${parseInt(startMonth)}月${parseInt(startDay)}日～${endMonth}月${parseInt(endDay)}日.csv`;
-      await exportCSVFile(csv, fileName);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (error) {
-      console.error("Error exporting inbound records:", error);
-      Alert.alert("エラー", "入庫履歴のエクスポートに失敗しました");
-    } finally {
-      setIsProcessing(false);
-    }
-  };
 
-  const handleExportInventorySummary = async () => {
-    try {
-      setIsProcessing(true);
-      const csv = await getMonthlyInventorySummary(currentMonth, startDate, endDate);
-      const startYear = startDate.getFullYear();
-      const startMonth = String(startDate.getMonth() + 1).padStart(2, '0');
-      const startDay = String(startDate.getDate()).padStart(2, '0');
-      const endYear = endDate.getFullYear();
-      const endMonth = String(endDate.getMonth() + 1).padStart(2, '0');
-      const endDay = String(endDate.getDate()).padStart(2, '0');
-      const fileName = `在庫サマリー_${startYear}年${parseInt(startMonth)}月${parseInt(startDay)}日～${endMonth}月${parseInt(endDay)}日.csv`;
-      await exportCSVFile(csv, fileName);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (error) {
-      console.error("Error exporting inventory summary:", error);
-      Alert.alert("エラー", "月末在庫集計のエクスポートに失敗しました");
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleExportAllAsFormat = async (format: 'json' | 'csv' | 'zip') => {
-    const formatLabel = format === 'zip' ? 'ZIP' : format.toUpperCase();
+  const handleExportAllAsFormat = async () => {
     Alert.alert(
-      `全ファイルを${formatLabel}でエクスポート`,
-      `${formatLabel}形式で全ファイルをエクスポートします。よろしいですか？`,
+      'ZIP形式でエクスポート',
+      'ZIP形式で全ファイルをエクスポートします。よろしいですか？',
       [
         { text: 'キャンセル', onPress: () => {} },
         {
           text: 'エクスポート',
           onPress: async () => {
-            await performExportAll(format);
+            await performExportAll('zip');
           },
         },
       ]
     );
   };
 
-  const performExportAll = async (format: 'json' | 'csv' | 'zip') => {
+  const performExportAll = async (format: 'zip') => {
     try {
       setIsProcessing(true);
       
@@ -256,83 +158,21 @@ export default function MonthendScreen() {
       const endStr = endDate.toISOString().split('T')[0].split('-').slice(1).join('-');
       const dateRange = `_${startStr}～${endStr}`;
       
-      if (format === 'json') {
-        // JSON形式でエクスポート
-        const jsonFileName = `月末処理_${year}年${parseInt(month)}月${dateRange}.json`;
-        const exportData = {
-          exportDate: new Date().toISOString(),
-          month: currentMonth,
-          dateRange: { start: startStr, end: endStr },
-          outboundRecords: outboundCsv,
-          inboundRecords: inboundCsv,
-          inventorySummary: inventoryCsv,
-        };
-        
-        const jsonContent = JSON.stringify(exportData, null, 2);
-        const jsonPath = `${FileSystem.cacheDirectory}${jsonFileName}`;
-        await FileSystem.writeAsStringAsync(jsonPath, jsonContent, {
-          encoding: FileSystem.EncodingType.UTF8,
-        });
-        
-        // MailComposerでメール送信
-        const isAvailable = await MailComposer.isAvailableAsync();
-        if (isAvailable) {
-          await MailComposer.composeAsync({
-            recipients: [],
-            subject: `部品在庫管理 月末処理 ${currentMonth}`,
-            body: "添付したファイルを使用してデータを保存できます。",
-            attachments: [jsonPath],
-          });
-        } else {
-          Alert.alert("エラー", "メール機能が利用できません");
-        }
-        
-        Alert.alert('保存完了', `${jsonFileName}がメールに添付されました。`);
-      } else if (format === 'csv') {
-        // CSV形式でエクスポート
-        const tempDir = `${FileSystem.cacheDirectory}monthly_export_${Date.now()}/`;
-        await FileSystem.makeDirectoryAsync(tempDir, { intermediates: true });
-        
-        const outboundFile = `${tempDir}出庫履歴_${year}年${parseInt(month)}月${dateRange}.csv`;
-        const inboundFile = `${tempDir}入庫履歴_${year}年${parseInt(month)}月${dateRange}.csv`;
-        const inventoryFile = `${tempDir}在庫サマリー_${year}年${parseInt(month)}月${dateRange}.csv`;
-        
-        await FileSystem.writeAsStringAsync(outboundFile, outboundCsv, {
-          encoding: FileSystem.EncodingType.UTF8,
-        });
-        await FileSystem.writeAsStringAsync(inboundFile, inboundCsv, {
-          encoding: FileSystem.EncodingType.UTF8,
-        });
-        await FileSystem.writeAsStringAsync(inventoryFile, inventoryCsv, {
-          encoding: FileSystem.EncodingType.UTF8,
-        });
-        
-        // MailComposerでメール送信
-        const isAvailable = await MailComposer.isAvailableAsync();
-        if (isAvailable) {
-          await MailComposer.composeAsync({
-            recipients: [],
-            subject: `部品在庫管理 月末処理 ${currentMonth}`,
-            body: "添付したファイルを使用してデータを保存できます。",
-            attachments: [outboundFile, inboundFile, inventoryFile],
-          });
-        } else {
-          Alert.alert("エラー", "メール機能が利用できません");
-        }
-        
-        Alert.alert('保存完了', '3つのCSVファイルがメールに添付されました。');
-        
-        // tempDirの削除
-        await FileSystem.deleteAsync(tempDir, { idempotent: true });
-      } else if (format === 'zip') {
+      if (format === 'zip') {
         // ZIP形式でエクスポート
         const JSZip = require('jszip');
         const zip = new JSZip();
         
+        // UTF-8 BOMを追加（Windows環境での文字化け防止）
+        const BOM = '\uFEFF';
+        const outboundCsvWithBOM = BOM + outboundCsv;
+        const inboundCsvWithBOM = BOM + inboundCsv;
+        const inventoryCsvWithBOM = BOM + inventoryCsv;
+        
         // ZIPにCSVファイルを追加
-        zip.file(`出庫履歴_${year}年${parseInt(month)}月${dateRange}.csv`, outboundCsv);
-        zip.file(`入庫履歴_${year}年${parseInt(month)}月${dateRange}.csv`, inboundCsv);
-        zip.file(`在庫サマリー_${year}年${parseInt(month)}月${dateRange}.csv`, inventoryCsv);
+        zip.file(`出庫履歴_${year}年${parseInt(month)}月${dateRange}.csv`, outboundCsvWithBOM);
+        zip.file(`入庫履歴_${year}年${parseInt(month)}月${dateRange}.csv`, inboundCsvWithBOM);
+        zip.file(`在庫サマリー_${year}年${parseInt(month)}月${dateRange}.csv`, inventoryCsvWithBOM);
         
         // ZIPファイルを生成
         const zipData = await zip.generateAsync({ type: 'base64' });
@@ -469,64 +309,18 @@ export default function MonthendScreen() {
         </View>
 
         <View className="mb-6">
-          <Text className="text-sm font-semibold text-foreground mb-2">4. CSV出力</Text>
+          <Text className="text-sm font-semibold text-foreground mb-2">4. 全ファイル一括ダウンロード</Text>
 
-          <View className="bg-surface rounded-lg p-4 mb-3 border border-border">
-            <Text className="text-sm font-semibold text-foreground mb-2">月末在庫集計</Text>
+          <View className="bg-surface rounded-lg p-4 mb-3 border border-border border-2" style={{ borderColor: '#8b5cf6' }}>
+            <Text className="text-sm font-semibold text-foreground mb-2">📦 ZIP形式でダウンロード</Text>
             <Text className="text-xs text-muted mb-3">
-              形式: 部品名,品番,単価,出庫数,入庫数,現在庫数,在庫金額
+              出庫履歴、入庫履歴、在庫サマリーの3つのファイルをZIP形式で一括ダウンロード
             </Text>
             <Pressable
-              onPress={handleExportInventorySummary}
-              disabled={isProcessing}
-              style={({ pressed }) => [{
-                backgroundColor: '#a855f7',
-                borderRadius: 8,
-                paddingVertical: 12,
-                opacity: isProcessing ? 0.5 : (pressed ? 0.7 : 1),
-              }]}
-            >
-              {isProcessing ? (
-                <ActivityIndicator color="white" />
-              ) : (
-                <Text className="text-center text-white font-bold">月末在庫集計をエクスポート</Text>
-              )}
-            </Pressable>
-          </View>
-
-          <View className="bg-surface rounded-lg p-4 mb-3 border border-border">
-            <Text className="text-sm font-semibold text-foreground mb-2">出庫履歴</Text>
-            <Text className="text-xs text-muted mb-3">
-              形式: 日付,伝票番号,顧客名,ナンバー,部品名,数量
-            </Text>
-            <Pressable
-              onPress={handleExportOutbound}
-              disabled={isProcessing}
-              style={({ pressed }) => [{
-                backgroundColor: '#0ea5e9',
-                borderRadius: 8,
-                paddingVertical: 12,
-                opacity: isProcessing ? 0.5 : (pressed ? 0.7 : 1),
-              }]}
-            >
-              {isProcessing ? (
-                <ActivityIndicator color="white" />
-              ) : (
-                <Text className="text-center text-white font-bold">出庫履歴をエクスポート</Text>
-              )}
-            </Pressable>
-          </View>
-
-          <View className="bg-surface rounded-lg p-4 mb-3 border border-border">
-            <Text className="text-sm font-semibold text-foreground mb-2">入庫履歴</Text>
-            <Text className="text-xs text-muted mb-3">
-              形式: 日付,伝票番号,仕入先,部品名,数量
-            </Text>
-            <Pressable
-              onPress={handleExportInbound}
+              onPress={handleExportAllAsFormat}
               disabled={isProcessing}
               style={(({ pressed }) => [{
-                backgroundColor: '#10b981',
+                backgroundColor: '#8b5cf6',
                 borderRadius: 8,
                 paddingVertical: 12,
                 opacity: isProcessing ? 0.5 : (pressed ? 0.7 : 1),
@@ -535,66 +329,9 @@ export default function MonthendScreen() {
               {isProcessing ? (
                 <ActivityIndicator color="white" />
               ) : (
-                <Text className="text-center text-white font-bold">入庫履歴をエクスポート</Text>
+                <Text className="text-center text-white font-bold">ZIP形式でダウンロード</Text>
               )}
             </Pressable>
-          </View>
-
-          <View className="bg-surface rounded-lg p-4 mb-3 border border-border border-2" style={{ borderColor: '#f59e0b' }}>
-            <Text className="text-sm font-semibold text-foreground mb-2">📦 全ファイル一括ダウンロード</Text>
-            <Text className="text-xs text-muted mb-3">
-              3つのファイルをJSON、CSV、またZIP形式でダウンロード
-            </Text>
-            <View className="gap-2">
-              <Pressable
-                onPress={() => handleExportAllAsFormat('json')}
-                disabled={isProcessing}
-                style={(({ pressed }) => [{
-                  backgroundColor: '#f59e0b',
-                  borderRadius: 8,
-                  paddingVertical: 12,
-                  opacity: isProcessing ? 0.5 : (pressed ? 0.7 : 1),
-                }])}
-              >
-                {isProcessing ? (
-                  <ActivityIndicator color="white" />
-                ) : (
-                  <Text className="text-center text-white font-bold">JSON形式でダウンロード</Text>
-                )}
-              </Pressable>
-              <Pressable
-                onPress={() => handleExportAllAsFormat('csv')}
-                disabled={isProcessing}
-                style={(({ pressed }) => [{
-                  backgroundColor: '#06b6d4',
-                  borderRadius: 8,
-                  paddingVertical: 12,
-                  opacity: isProcessing ? 0.5 : (pressed ? 0.7 : 1),
-                }])}
-              >
-                {isProcessing ? (
-                  <ActivityIndicator color="white" />
-                ) : (
-                  <Text className="text-center text-white font-bold">CSV形式でダウンロード</Text>
-                )}
-              </Pressable>
-              <Pressable
-                onPress={() => handleExportAllAsFormat('zip')}
-                disabled={isProcessing}
-                style={(({ pressed }) => [{
-                  backgroundColor: '#8b5cf6',
-                  borderRadius: 8,
-                  paddingVertical: 12,
-                  opacity: isProcessing ? 0.5 : (pressed ? 0.7 : 1),
-                }])}
-              >
-                {isProcessing ? (
-                  <ActivityIndicator color="white" />
-                ) : (
-                  <Text className="text-center text-white font-bold">ZIP形式でダウンロード</Text>
-                )}
-              </Pressable>
-            </View>
           </View>
         </View>
       </ScrollView>

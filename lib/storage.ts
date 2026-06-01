@@ -517,8 +517,17 @@ export async function exportOutboundRecordsAsCSV(startDate?: Date, endDate?: Dat
     // 期間フィルタリング
     let filteredRecords = records;
     if (startDate && endDate) {
-      const start = startDate.toISOString().split('T')[0];
-      const end = endDate.toISOString().split('T')[0];
+      // ローカルタイムで日付を取得（タイムゾーン対応）
+      const startYear = startDate.getFullYear();
+      const startMonth = String(startDate.getMonth() + 1).padStart(2, '0');
+      const startDay = String(startDate.getDate()).padStart(2, '0');
+      const start = `${startYear}-${startMonth}-${startDay}`;
+      
+      const endYear = endDate.getFullYear();
+      const endMonth = String(endDate.getMonth() + 1).padStart(2, '0');
+      const endDay = String(endDate.getDate()).padStart(2, '0');
+      const end = `${endYear}-${endMonth}-${endDay}`;
+      
       filteredRecords = records.filter(r => r.date >= start && r.date <= end);
     }
     
@@ -546,8 +555,17 @@ export async function exportInboundRecordsAsCSV(startDate?: Date, endDate?: Date
     // 期間フィルタリング
     let filteredRecords = records;
     if (startDate && endDate) {
-      const start = startDate.toISOString().split('T')[0];
-      const end = endDate.toISOString().split('T')[0];
+      // ローカルタイムで日付を取得（タイムゾーン対応）
+      const startYear = startDate.getFullYear();
+      const startMonth = String(startDate.getMonth() + 1).padStart(2, '0');
+      const startDay = String(startDate.getDate()).padStart(2, '0');
+      const start = `${startYear}-${startMonth}-${startDay}`;
+      
+      const endYear = endDate.getFullYear();
+      const endMonth = String(endDate.getMonth() + 1).padStart(2, '0');
+      const endDay = String(endDate.getDate()).padStart(2, '0');
+      const end = `${endYear}-${endMonth}-${endDay}`;
+      
       filteredRecords = records.filter(r => r.date >= start && r.date <= end);
     }
     
@@ -577,8 +595,17 @@ export async function getMonthlyInventorySummary(month: string, startDate?: Date
     let monthInbound = inboundRecords;
     
     if (startDate && endDate) {
-      const start = startDate.toISOString().split('T')[0];
-      const end = endDate.toISOString().split('T')[0];
+      // ローカルタイムで日付を取得（タイムゾーン対応）
+      const startYear = startDate.getFullYear();
+      const startMonth = String(startDate.getMonth() + 1).padStart(2, '0');
+      const startDay = String(startDate.getDate()).padStart(2, '0');
+      const start = `${startYear}-${startMonth}-${startDay}`;
+      
+      const endYear = endDate.getFullYear();
+      const endMonth = String(endDate.getMonth() + 1).padStart(2, '0');
+      const endDay = String(endDate.getDate()).padStart(2, '0');
+      const end = `${endYear}-${endMonth}-${endDay}`;
+      
       monthOutbound = monthOutbound.filter(r => r.date >= start && r.date <= end);
       monthInbound = monthInbound.filter(r => r.date >= start && r.date <= end);
     } else {
