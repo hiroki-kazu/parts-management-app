@@ -841,15 +841,31 @@ export async function getOutboundRecordByVoucherNumber(voucherNumber: string): P
  */
 export async function generatePartsCSVTemplate(): Promise<string> {
   try {
-    const header = "部品名,品番,単価,最低在庫数,小数対応\n";
+    // 現在の部品一覧を取得
+    const parts = await getParts();
+    
+    // ヘッダー行（現在庫列を追加）
+    const header = "部品名,品番,単価,最低在庫数,小数対応,現在庫\n";
+    
+    // 既存部品のデータ行
+    const dataRows = parts.map(part => {
+      const currentStock = part.allowDecimal 
+        ? Math.round(part.currentStock * 10) / 10 
+        : Math.round(part.currentStock);
+      const smallDecimal = part.allowDecimal ? "○" : "×";
+      return `${part.name},${part.partNumber},${part.unitPrice},${part.minStock},${smallDecimal},${currentStock}`;
+    });
+    
+    // サンプル行（参考用）
     const exampleRows = [
-      "エンジンオイル,EO-001,5000,10,○",
-      "エアフィルター,AF-001,2000,5,×",
-      "バッテリー,BAT-001,15000,2,×",
+      "エンジンオイル,EO-001,5000,10,○,25",
+      "エアフィルター,AF-001,2000,5,×,8",
+      "バッテリー,BAT-001,15000,2,×,3",
     ];
     
-    const rows = exampleRows.join("\n");
-    return header + rows;
+    // 既存部品がある場合はそれを使用、ない場合はサンプルを使用
+    const rows = dataRows.length > 0 ? dataRows : exampleRows;
+    return header + rows.join("\n");
   } catch (error) {
     console.error("Error generating parts CSV template:", error);
     throw error;
