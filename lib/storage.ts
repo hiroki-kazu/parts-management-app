@@ -662,7 +662,7 @@ export async function getMonthlyInventorySummary(month: string, startDate?: Date
 
 /**
  * CSV からバッチ部品追加
- * CSV形式: 部品名,品番,単価,最低在庫数,小数対応
+ * CSV形式: 部品名,品番,単価,最低在庫数,小数対応,現在庫（現在庫は省略可能）
  */
 export async function importPartsFromCSV(csvContent: string): Promise<{ success: number; failed: number; errors: string[] }> {
   try {
@@ -678,7 +678,16 @@ export async function importPartsFromCSV(csvContent: string): Promise<{ success:
       if (!line) continue;
 
       try {
-        const [name, partNumber, unitPriceStr, minStockStr, allowDecimalStr] = line.split(',').map(v => v.trim());
+        const columns = line.split(',').map(v => v.trim());
+        
+        // 最低5列必須（現在庫列は省略可能）
+        if (columns.length < 5) {
+          errors.push(`行${i + 1}: 列の数が不足しています（最低5列必須）`);
+          failed++;
+          continue;
+        }
+
+        const [name, partNumber, unitPriceStr, minStockStr, allowDecimalStr, currentStockStr] = columns;
 
         if (!name || !partNumber) {
           errors.push(`行${i + 1}: 部品名と品番は必須です`);
@@ -689,6 +698,7 @@ export async function importPartsFromCSV(csvContent: string): Promise<{ success:
         const unitPrice = parseFloat(unitPriceStr) || 0;
         const minStock = parseFloat(minStockStr) || 0;
         const allowDecimal = allowDecimalStr?.toLowerCase() === 'true' || allowDecimalStr === '○';
+        const currentStock = currentStockStr ? parseFloat(currentStockStr) : 0;
 
         // 重複チェック
         if (parts.some(p => p.partNumber === partNumber)) {
@@ -702,7 +712,7 @@ export async function importPartsFromCSV(csvContent: string): Promise<{ success:
           name,
           partNumber,
           unitPrice,
-          currentStock: 0,
+          currentStock,
           minStock,
           allowDecimal,
           createdAt: new Date().toISOString(),
