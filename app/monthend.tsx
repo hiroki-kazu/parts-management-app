@@ -117,8 +117,10 @@ export default function DataProcessingScreen() {
       setIsProcessing(true);
       
       // ドキュメントピッカーを起動
+      // AndroidではMIMEタイプが厳しいため、複数のタイプを指定
       const result = await DocumentPicker.getDocumentAsync({
-        type: 'text/csv',
+        type: ['text/csv', 'text/plain', 'application/vnd.ms-excel', '*/*'],
+        copyToCacheDirectory: true,
       });
       
       if (result.canceled) {
