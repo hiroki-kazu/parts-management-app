@@ -29,7 +29,7 @@ interface InventoryItem {
   isNegative: boolean;
 }
 
-type ModalType = "edit-stock" | "edit-min-stock" | "add-part" | null;
+type ModalType = "edit-stock" | "edit-min-stock" | "add-part" | "bulk-edit" | null;
 
 export default function InventoryScreen() {
   const router = useRouter();
@@ -38,6 +38,12 @@ export default function InventoryScreen() {
   const [modalType, setModalType] = useState<ModalType>(null);
   const [editingPartId, setEditingPartId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState("");
+  
+  // 一括編集用
+  const [selectedPartIds, setSelectedPartIds] = useState<Set<string>>(new Set());
+  const [bulkEditMode, setBulkEditMode] = useState(false);
+  const [bulkStockValue, setBulkStockValue] = useState("");
+  const [bulkMinStockValue, setBulkMinStockValue] = useState("");
 
   // 新規部品追加用
   const [newPartName, setNewPartName] = useState("");
@@ -167,10 +173,10 @@ export default function InventoryScreen() {
       const newValue = parseFloat(editingValue);
       
       if (modalType === "edit-stock") {
-        await updatePart(editingPartId, { currentStock: newValue });
+        await updatePart(editingPartId || "", { currentStock: newValue });
         Alert.alert("成功", "在庫数を更新しました");
       } else if (modalType === "edit-min-stock") {
-        await updatePart(editingPartId, { minStock: newValue });
+        await updatePart(editingPartId || "", { minStock: newValue });
         Alert.alert("成功", "最低在庫を更新しました");
       }
       
@@ -241,22 +247,83 @@ export default function InventoryScreen() {
       item.part.partNumber.includes(searchText)
   );
 
-  const renderInventoryItem = ({ item }: { item: InventoryItem }) => (
-    <View className={`rounded-lg p-4 mb-3 border-2 ${
-      item.isNegative ? 'bg-error/20 border-error' : 
-      item.isLow ? 'bg-warning/10 border-warning' : 
-      'bg-surface border-border'
-    }`}>
+  const handleToggleSelect = (partId: string) => {
+    const newSelected = new Set(selectedPartIds);
+    if (newSelected.has(partId)) {
+      newSelected.delete(partId);
+    } else {
+      newSelected.add(partId);
+    }
+    setSelectedPartIds(newSelected);
+  };
+
+  const handleSelectAll = () => {
+    if (selectedPartIds.size === filteredItems.length && filteredItems.length > 0) {
+      setSelectedPartIds(new Set());
+    } else {
+      setSelectedPartIds(new Set(filteredItems.map(item => item.part.id)));
+    }
+  };
+
+  const handleBulkEdit = async () => {
+    if (selectedPartIds.size === 0) {
+      Alert.alert("エラー", "部品を選択してください");
+      return;
+    }
+
+    if (!bulkStockValue && !bulkMinStockValue) {
+      Alert.alert("エラー", "更新内容を入力してください");
+      return;
+    }
+
+    try {
+      const selectedParts = inventoryItems.filter(item => selectedPartIds.has(item.part.id));
+      
+      for (const item of selectedParts) {
+        const updatedPart = {
+          ...item.part,
+          currentStock: bulkStockValue ? parseFloat(bulkStockValue) : item.part.currentStock,
+          minStock: bulkMinStockValue ? parseFloat(bulkMinStockValue) : item.part.minStock,
+        };
+        await updatePart(item.part.id, updatedPart);
+      }
+
+      Alert.alert("成功", `${selectedPartIds.size}件の部品を更新しました`);
+      setSelectedPartIds(new Set());
+      setBulkEditMode(false);
+      setBulkStockValue("");
+      setBulkMinStockValue("");
+      setModalType(null);
+      await loadInventory();
+    } catch (error) {
+      Alert.alert("エラー", "一括更新に失敗しました");
+    }
+  };
+
+  const renderInventoryItem = ({ item }: { item: InventoryItem }) => {
+    const isSelected = selectedPartIds.has(item.part.id);
+    return (
+    <Pressable
+      onPress={() => handleToggleSelect(item.part.id)}
+      className={`rounded-lg p-4 mb-3 border-2 ${
+        item.isNegative ? 'bg-error/20 border-error' : 
+        item.isLow ? 'bg-warning/10 border-warning' : 
+        'bg-surface border-border'
+      } ${isSelected ? 'border-primary border-4' : ''}`}
+    >
       <View className="flex-row justify-between items-start mb-2">
-        <View className="flex-1">
-          <Text className={`text-lg font-semibold ${
-            item.isNegative ? 'text-error' : 
-            item.isLow ? 'text-warning' : 
-            'text-foreground'
-          }`}>
-            {item.isNegative ? '🚨 ' : item.isLow ? '⚠️ ' : ''}{item.part.name}
-          </Text>
-          <Text className="text-sm text-muted">品番: {item.part.partNumber}</Text>
+        <View className="flex-row flex-1 items-center">
+          <Text className="text-2xl mr-2">{isSelected ? '☑️' : '☐'}</Text>
+          <View className="flex-1">
+            <Text className={`text-lg font-semibold ${
+              item.isNegative ? 'text-error' : 
+              item.isLow ? 'text-warning' : 
+              'text-foreground'
+            }`}>
+              {item.isNegative ? '🚨 ' : item.isLow ? '⚠️ ' : ''}{item.part.name}
+            </Text>
+            <Text className="text-sm text-muted">品番: {item.part.partNumber}</Text>
+          </View>
         </View>
         <View className={`${getStatusColor(item.status)} rounded-full px-3 py-1`}>
           <Text className="text-white text-xs font-semibold">
@@ -339,8 +406,9 @@ export default function InventoryScreen() {
           <Text className="text-white text-center font-semibold text-sm">削除</Text>
         </Pressable>
       </View>
-    </View>
+    </Pressable>
   );
+  };
 
   return (
     <>
@@ -355,6 +423,15 @@ export default function InventoryScreen() {
             <Text className="text-2xl font-bold text-foreground">在庫一覧</Text>
           </View>
           <View className="flex-row gap-2">
+            {selectedPartIds.size > 0 && (
+              <Pressable 
+                onPress={() => setModalType("bulk-edit")}
+                style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+                className="bg-warning rounded-full w-10 h-10 items-center justify-center"
+              >
+                <Text className="text-white text-lg">✏️</Text>
+              </Pressable>
+            )}
             <Pressable 
               onPress={handleImportParts}
               style={({ pressed }) => [pressed && { opacity: 0.7 }]}
@@ -576,6 +653,56 @@ export default function InventoryScreen() {
               className="flex-1 bg-success rounded-lg py-3"
             >
               <Text className="text-center font-semibold text-white">追加</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+
+    {/* 一括編集モーダル */}
+    <Modal
+      visible={modalType === "bulk-edit"}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setModalType(null)}
+    >
+      <View className="flex-1 bg-black/50 justify-center items-center p-4">
+        <View className="bg-background rounded-lg p-6 w-full max-w-sm">
+          <Text className="text-lg font-bold text-foreground mb-4">一括編集 ({selectedPartIds.size}件)</Text>
+          
+          <TextInput
+            placeholder="在庫数を入力（空白で変更なし）"
+            value={bulkStockValue}
+            onChangeText={setBulkStockValue}
+            keyboardType="decimal-pad"
+            className="bg-surface border border-border rounded-lg px-4 py-3 mb-4 text-foreground"
+            placeholderTextColor="#999"
+          />
+          
+          <TextInput
+            placeholder="最低在庫を入力（空白で変更なし）"
+            value={bulkMinStockValue}
+            onChangeText={setBulkMinStockValue}
+            keyboardType="decimal-pad"
+            className="bg-surface border border-border rounded-lg px-4 py-3 mb-4 text-foreground"
+            placeholderTextColor="#999"
+          />
+          
+          <View className="flex-row gap-3">
+            <Pressable
+              onPress={() => setModalType(null)}
+              style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+              className="flex-1 bg-muted rounded-lg py-3"
+            >
+              <Text className="text-center font-semibold text-foreground">キャンセル</Text>
+            </Pressable>
+            
+            <Pressable
+              onPress={handleBulkEdit}
+              style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+              className="flex-1 bg-warning rounded-lg py-3"
+            >
+              <Text className="text-center font-semibold text-white">更新</Text>
             </Pressable>
           </View>
         </View>
