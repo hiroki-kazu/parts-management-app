@@ -23,6 +23,10 @@ import {
   getMonthlyInventorySummary,
   generatePartsCSVTemplate,
   importPartsFromCSV,
+  generateOutboundRecordsCSVTemplate,
+  generateInboundRecordsCSVTemplate,
+  importOutboundRecordsFromCSV,
+  importInboundRecordsFromCSV,
 } from "@/lib/storage";
 import * as Haptics from "expo-haptics";
 import * as FileSystem from "expo-file-system/legacy";
@@ -157,6 +161,111 @@ export default function DataProcessingScreen() {
   };
 
 
+
+
+  const handleSendOutboundTemplate = async () => {
+    try {
+      setIsProcessing(true);
+      const csvContent = await generateOutboundRecordsCSVTemplate();
+      const bomCsv = '\uFEFF' + csvContent;
+      const filename = `出庫履歴テンプレート_${new Date().toISOString().split('T')[0]}.csv`;
+      const path = `${FileSystem.cacheDirectory}${filename}`;
+      
+      await FileSystem.writeAsStringAsync(path, bomCsv, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      const isAvailable = await MailComposer.isAvailableAsync();
+      if (isAvailable) {
+        await MailComposer.composeAsync({
+          subject: `出庫履歴テンプレート`,
+          body: `出庫履歴をCSVで一括登録するためのテンプレートです。\n\n形式: 日付,伝票番号,顧客名,車両ナンバー,部品名,数量`,
+          attachments: [path],
+        });
+        Alert.alert('成功', `${filename}がメールに添付されました`);
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (error) {
+      Alert.alert('エラー', 'テンプレート送信に失敗しました');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleSendInboundTemplate = async () => {
+    try {
+      setIsProcessing(true);
+      const csvContent = await generateInboundRecordsCSVTemplate();
+      const bomCsv = '\uFEFF' + csvContent;
+      const filename = `入庫履歴テンプレート_${new Date().toISOString().split('T')[0]}.csv`;
+      const path = `${FileSystem.cacheDirectory}${filename}`;
+      
+      await FileSystem.writeAsStringAsync(path, bomCsv, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      const isAvailable = await MailComposer.isAvailableAsync();
+      if (isAvailable) {
+        await MailComposer.composeAsync({
+          subject: `入庫履歴テンプレート`,
+          body: `入庫履歴をCSVで一括登録するためのテンプレートです。\n\n形式: 日付,伝票番号,仕入先,部品名,数量`,
+          attachments: [path],
+        });
+        Alert.alert('成功', `${filename}がメールに添付されました`);
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (error) {
+      Alert.alert('エラー', 'テンプレート送信に失敗しました');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleImportOutboundRecords = async () => {
+    try {
+      setIsProcessing(true);
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['text/csv', 'text/plain', 'application/vnd.ms-excel', '*/*'],
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled) return;
+
+      const fileUri = result.assets[0].uri;
+      const fileContent = await FileSystem.readAsStringAsync(fileUri);
+      
+      const { success, failed } = await importOutboundRecordsFromCSV(fileContent);
+      Alert.alert('インポート完了', `成功: ${success}件\n失敗: ${failed}件`);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      Alert.alert('エラー', 'インポートに失敗しました');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleImportInboundRecords = async () => {
+    try {
+      setIsProcessing(true);
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['text/csv', 'text/plain', 'application/vnd.ms-excel', '*/*'],
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled) return;
+
+      const fileUri = result.assets[0].uri;
+      const fileContent = await FileSystem.readAsStringAsync(fileUri);
+      
+      const { success, failed } = await importInboundRecordsFromCSV(fileContent);
+      Alert.alert('インポート完了', `成功: ${success}件\n失敗: ${failed}件`);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      Alert.alert('エラー', 'インポートに失敗しました');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
 
   const handleExportAllAsFormat = async () => {
@@ -295,6 +404,90 @@ export default function DataProcessingScreen() {
             </Text>
             <Pressable
               onPress={handleImportCSV}
+              disabled={isProcessing}
+              style={(({ pressed }) => [{
+                backgroundColor: '#10b981',
+                borderRadius: 8,
+                paddingVertical: 12,
+                opacity: isProcessing ? 0.5 : (pressed ? 0.7 : 1),
+              }])}
+            >
+              {isProcessing ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <Text className="text-center text-white font-bold">CSVを選択してインポート</Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+
+
+        {/* セクション1.5: 履歴テンプレート */}
+        <View className="mb-6">
+          <Text className="text-sm font-semibold text-foreground mb-2">1.5 履歴テンプレート</Text>
+          
+          {/* 出庫履歴テンプレート */}
+          <View className="bg-surface rounded-lg p-4 mb-3 border border-border">
+            <Text className="text-sm font-semibold text-foreground mb-2">📤 出庫履歴テンプレート</Text>
+            <Text className="text-xs text-muted mb-3">出庫履歴をCSVで一括登録するためのテンプレートです</Text>
+            <Pressable
+              onPress={handleSendOutboundTemplate}
+              disabled={isProcessing}
+              style={(({ pressed }) => [{
+                backgroundColor: '#06b6d4',
+                borderRadius: 8,
+                paddingVertical: 12,
+                opacity: isProcessing ? 0.5 : (pressed ? 0.7 : 1),
+              }])}
+            >
+              <Text className="text-center text-white font-bold">テンプレートをメール送信</Text>
+            </Pressable>
+          </View>
+
+          {/* 出庫履歴インポート */}
+          <View className="bg-surface rounded-lg p-4 mb-3 border border-border">
+            <Text className="text-xs text-muted mb-3">出庫履歴CSVをインポート</Text>
+            <Pressable
+              onPress={handleImportOutboundRecords}
+              disabled={isProcessing}
+              style={(({ pressed }) => [{
+                backgroundColor: '#06b6d4',
+                borderRadius: 8,
+                paddingVertical: 12,
+                opacity: isProcessing ? 0.5 : (pressed ? 0.7 : 1),
+              }])}
+            >
+              {isProcessing ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <Text className="text-center text-white font-bold">CSVを選択してインポート</Text>
+              )}
+            </Pressable>
+          </View>
+
+          {/* 入庫履歴テンプレート */}
+          <View className="bg-surface rounded-lg p-4 mb-3 border border-border">
+            <Text className="text-sm font-semibold text-foreground mb-2">📥 入庫履歴テンプレート</Text>
+            <Text className="text-xs text-muted mb-3">入庫履歴をCSVで一括登録するためのテンプレートです</Text>
+            <Pressable
+              onPress={handleSendInboundTemplate}
+              disabled={isProcessing}
+              style={(({ pressed }) => [{
+                backgroundColor: '#10b981',
+                borderRadius: 8,
+                paddingVertical: 12,
+                opacity: isProcessing ? 0.5 : (pressed ? 0.7 : 1),
+              }])}
+            >
+              <Text className="text-center text-white font-bold">テンプレートをメール送信</Text>
+            </Pressable>
+          </View>
+
+          {/* 入庫履歴インポート */}
+          <View className="bg-surface rounded-lg p-4 mb-3 border border-border">
+            <Text className="text-xs text-muted mb-3">入庫履歴CSVをインポート</Text>
+            <Pressable
+              onPress={handleImportInboundRecords}
               disabled={isProcessing}
               style={(({ pressed }) => [{
                 backgroundColor: '#10b981',

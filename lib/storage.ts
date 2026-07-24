@@ -882,3 +882,219 @@ export async function generatePartsCSVTemplate(): Promise<string> {
     throw error;
   }
 }
+
+
+/**
+ * 出庫履歴テンプレートCSV生成
+ */
+export async function generateOutboundRecordsCSVTemplate(): Promise<string> {
+  try {
+    // ヘッダー行
+    const header = "日付,伝票番号,顧客名,車両ナンバー,部品名,数量\n";
+    
+    // 最近の出庫履歴を取得（最大5件）
+    const records = await getOutboundRecords();
+    const recentRecords = records.slice(0, 5);
+    
+    // 既存データ行
+    const dataRows = recentRecords.map(record => {
+      return `${record.date},${record.voucherNumber},${record.customerName},${record.vehicleNumber},${record.partName},${record.quantity}`;
+    });
+    
+    // サンプル行（参考用）
+    const exampleRows = [
+      "2026-07-24,DEN-001,山田自動車,1234,エンジンオイル,2",
+      "2026-07-24,DEN-002,太郎自動車,5678,エアフィルター,1",
+      "2026-07-23,DEN-003,花子自動車,9012,バッテリー,1",
+    ];
+    
+    // 既存データがある場合はそれを使用、ない場合はサンプルを使用
+    const rows = dataRows.length > 0 ? dataRows : exampleRows;
+    return header + rows.join("\n");
+  } catch (error) {
+    console.error("Error generating outbound records CSV template:", error);
+    throw error;
+  }
+}
+
+/**
+ * 入庫履歴テンプレートCSV生成
+ */
+export async function generateInboundRecordsCSVTemplate(): Promise<string> {
+  try {
+    // ヘッダー行
+    const header = "日付,伝票番号,仕入先,部品名,数量\n";
+    
+    // 最近の入庫履歴を取得（最大5件）
+    const records = await getInboundRecords();
+    const recentRecords = records.slice(0, 5);
+    
+    // 既存データ行
+    const dataRows = recentRecords.map(record => {
+      return `${record.date},${record.voucherNumber},${record.supplier},${record.partName},${record.quantity}`;
+    });
+    
+    // サンプル行（参考用）
+    const exampleRows = [
+      "2026-07-24,NUU-001,日本知貫気象店,エンジンオイル,10",
+      "2026-07-24,NUU-002,トヨタ部品店,エアフィルター,5",
+      "2026-07-23,NUU-003,パナソニック店,バッテリー,3",
+    ];
+    
+    // 既存データがある場合はそれを使用、ない場合はサンプルを使用
+    const rows = dataRows.length > 0 ? dataRows : exampleRows;
+    return header + rows.join("\n");
+  } catch (error) {
+    console.error("Error generating inbound records CSV template:", error);
+    throw error;
+  }
+}
+
+/**
+ * 出庫履歴CSVインポート
+ */
+export async function importOutboundRecordsFromCSV(csvContent: string): Promise<{ success: number; failed: number }> {
+  try {
+    const lines = csvContent.trim().split("\n");
+    
+    // ヘッダーをスキップ
+    const dataLines = lines.slice(1);
+    
+    let successCount = 0;
+    let failureCount = 0;
+    
+    for (const line of dataLines) {
+      if (!line.trim()) continue;
+      
+      try {
+        const columns = line.split(",").map(col => col.trim());
+        
+        if (columns.length < 6) {
+          failureCount++;
+          continue;
+        }
+        
+        const [date, voucherNumber, customerName, vehicleNumber, partName, quantityStr] = columns;
+        const quantity = parseFloat(quantityStr);
+        
+        if (!date || !voucherNumber || !customerName || !vehicleNumber || !partName || isNaN(quantity)) {
+          failureCount++;
+          continue;
+        }
+        
+        // 部品IDを取得（部品名から検索）
+        const parts = await getParts();
+        const part = parts.find(p => p.name === partName);
+        
+        if (!part) {
+          failureCount++;
+          continue;
+        }
+        
+        // 出庫履歴を追加
+        const record: OutboundRecord = {
+          id: generateId(),
+          date,
+          voucherNumber,
+          customerName,
+          vehicleNumber,
+          partId: part.id,
+          partName,
+          quantity,
+          createdAt: new Date().toISOString(),
+        };
+        
+        const records = await getOutboundRecords();
+        records.push(record);
+        await AsyncStorage.setItem(STORAGE_KEYS.OUTBOUND_RECORDS, JSON.stringify(records));
+        
+        // 在庫数を減らす
+        const updatedPart = { ...part, currentStock: part.currentStock - quantity };
+        await updatePart(part.id, updatedPart);
+        
+        successCount++;
+      } catch {
+        failureCount++;
+      }
+    }
+    
+    return { success: successCount, failed: failureCount };
+  } catch (error) {
+    console.error("Error importing outbound records from CSV:", error);
+    throw error;
+  }
+}
+
+/**
+ * 入庫履歴CSVインポート
+ */
+export async function importInboundRecordsFromCSV(csvContent: string): Promise<{ success: number; failed: number }> {
+  try {
+    const lines = csvContent.trim().split("\n");
+    
+    // ヘッダーをスキップ
+    const dataLines = lines.slice(1);
+    
+    let successCount = 0;
+    let failureCount = 0;
+    
+    for (const line of dataLines) {
+      if (!line.trim()) continue;
+      
+      try {
+        const columns = line.split(",").map(col => col.trim());
+        
+        if (columns.length < 5) {
+          failureCount++;
+          continue;
+        }
+        
+        const [date, voucherNumber, supplier, partName, quantityStr] = columns;
+        const quantity = parseFloat(quantityStr);
+        
+        if (!date || !voucherNumber || !supplier || !partName || isNaN(quantity)) {
+          failureCount++;
+          continue;
+        }
+        
+        // 部品IDを取得（部品名から検索）
+        const parts = await getParts();
+        const part = parts.find(p => p.name === partName);
+        
+        if (!part) {
+          failureCount++;
+          continue;
+        }
+        
+        // 入庫履歴を追加
+        const record: InboundRecord = {
+          id: generateId(),
+          date,
+          voucherNumber,
+          supplier,
+          partId: part.id,
+          partName,
+          quantity,
+          createdAt: new Date().toISOString(),
+        };
+        
+        const records = await getInboundRecords();
+        records.push(record);
+        await AsyncStorage.setItem(STORAGE_KEYS.INBOUND_RECORDS, JSON.stringify(records));
+        
+        // 在庫数を増やす
+        const updatedPart = { ...part, currentStock: part.currentStock + quantity };
+        await updatePart(part.id, updatedPart);
+        
+        successCount++;
+      } catch {
+        failureCount++;
+      }
+    }
+    
+    return { success: successCount, failed: failureCount };
+  } catch (error) {
+    console.error("Error importing inbound records from CSV:", error);
+    throw error;
+  }
+}
