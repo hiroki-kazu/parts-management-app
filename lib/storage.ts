@@ -855,7 +855,7 @@ export async function generatePartsCSVTemplate(): Promise<string> {
     const parts = await getParts();
     
     // ヘッダー行（現在庫列を追加）
-    const header = "部品名,品番,単価,最低在庫数,小数対応,現在庫\n";
+    const header = "部品名,品番,単価,最低在庫数,小数対応,現在庫,仕入れ先\n";
     
     // 既存部品のデータ行
     const dataRows = parts.map(part => {
@@ -863,14 +863,15 @@ export async function generatePartsCSVTemplate(): Promise<string> {
         ? Math.round(part.currentStock * 10) / 10 
         : Math.round(part.currentStock);
       const smallDecimal = part.allowDecimal ? "○" : "×";
-      return `${part.name},${part.partNumber},${part.unitPrice},${part.minStock},${smallDecimal},${currentStock}`;
+      const supplier = part.supplier || "";
+      return `${part.name},${part.partNumber},${part.unitPrice},${part.minStock},${smallDecimal},${currentStock},${supplier}`;
     });
     
     // サンプル行（参考用）
     const exampleRows = [
-      "エンジンオイル,EO-001,5000,10,○,25",
-      "エアフィルター,AF-001,2000,5,×,8",
-      "バッテリー,BAT-001,15000,2,×,3",
+      "エンジンオイル,EO-001,5000,10,○,25,日本知貫気象店",
+      "エアフィルター,AF-001,2000,5,×,8,トヨタ部品店",
+      "バッテリー,BAT-001,15000,2,×,3,パナソニック店",
     ];
     
     // 既存部品がある場合はそれを使用、ない場合はサンプルを使用

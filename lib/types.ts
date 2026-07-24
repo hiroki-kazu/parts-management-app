@@ -13,6 +13,7 @@ export interface Part {
   currentStock: number; // 現在在庫数
   minStock: number; // 最低在庫数
   allowDecimal: boolean; // 小数使用フラグ
+  supplier?: string; // 仕入れ先（オプション）
   createdAt: string; // 作成日時（ISO 8601）
   updatedAt: string; // 更新日時（ISO 8601）
 }

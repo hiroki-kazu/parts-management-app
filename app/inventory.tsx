@@ -50,6 +50,7 @@ export default function InventoryScreen() {
   const [newPartNumber, setNewPartNumber] = useState("");
   const [newUnitPrice, setNewUnitPrice] = useState("");
   const [newMinStock, setNewMinStock] = useState("");
+  const [newSupplier, setNewSupplier] = useState("");
   const [newAllowDecimal, setNewAllowDecimal] = useState(false);
 
   // インポート機能
@@ -226,6 +227,7 @@ export default function InventoryScreen() {
         currentStock: 0,
         minStock: parseFloat(newMinStock),
         allowDecimal: newAllowDecimal,
+        supplier: newSupplier || undefined,
       });
 
       Alert.alert("成功", "部品を追加しました");
@@ -233,6 +235,7 @@ export default function InventoryScreen() {
       setNewPartNumber("");
       setNewUnitPrice("");
       setNewMinStock("");
+      setNewSupplier("");
       setNewAllowDecimal(false);
       setModalType(null);
       await loadInventory();
@@ -300,30 +303,27 @@ export default function InventoryScreen() {
     }
   };
 
-  const renderInventoryItem = ({ item }: { item: InventoryItem }) => {
-    const isSelected = selectedPartIds.has(item.part.id);
-    return (
-    <Pressable
-      onPress={() => handleToggleSelect(item.part.id)}
+  const renderInventoryItem = ({ item }: { item: InventoryItem }) => (
+    <View
       className={`rounded-lg p-4 mb-3 border-2 ${
         item.isNegative ? 'bg-error/20 border-error' : 
         item.isLow ? 'bg-warning/10 border-warning' : 
         'bg-surface border-border'
-      } ${isSelected ? 'border-primary border-4' : ''}`}
+      }`}
     >
       <View className="flex-row justify-between items-start mb-2">
-        <View className="flex-row flex-1 items-center">
-          <Text className="text-2xl mr-2">{isSelected ? '☑️' : '☐'}</Text>
-          <View className="flex-1">
-            <Text className={`text-lg font-semibold ${
-              item.isNegative ? 'text-error' : 
-              item.isLow ? 'text-warning' : 
-              'text-foreground'
-            }`}>
-              {item.isNegative ? '🚨 ' : item.isLow ? '⚠️ ' : ''}{item.part.name}
-            </Text>
-            <Text className="text-sm text-muted">品番: {item.part.partNumber}</Text>
-          </View>
+        <View className="flex-1">
+          <Text className={`text-lg font-semibold ${
+            item.isNegative ? 'text-error' : 
+            item.isLow ? 'text-warning' : 
+            'text-foreground'
+          }`}>
+            {item.isNegative ? '🚨 ' : item.isLow ? '⚠️ ' : ''}{item.part.name}
+          </Text>
+          <Text className="text-sm text-muted">品番: {item.part.partNumber}</Text>
+          {item.part.supplier && (
+            <Text className="text-sm text-muted mt-1">仕入先: {item.part.supplier}</Text>
+          )}
         </View>
         <View className={`${getStatusColor(item.status)} rounded-full px-3 py-1`}>
           <Text className="text-white text-xs font-semibold">
@@ -406,9 +406,8 @@ export default function InventoryScreen() {
           <Text className="text-white text-center font-semibold text-sm">削除</Text>
         </Pressable>
       </View>
-    </Pressable>
+    </View>
   );
-  };
 
   return (
     <>
@@ -423,22 +422,6 @@ export default function InventoryScreen() {
             <Text className="text-2xl font-bold text-foreground">在庫一覧</Text>
           </View>
           <View className="flex-row gap-2">
-            {selectedPartIds.size > 0 && (
-              <Pressable 
-                onPress={() => setModalType("bulk-edit")}
-                style={({ pressed }) => [pressed && { opacity: 0.7 }]}
-                className="bg-warning rounded-full w-10 h-10 items-center justify-center"
-              >
-                <Text className="text-white text-lg">✏️</Text>
-              </Pressable>
-            )}
-            <Pressable 
-              onPress={handleImportParts}
-              style={({ pressed }) => [pressed && { opacity: 0.7 }]}
-              className="bg-primary rounded-full w-10 h-10 items-center justify-center"
-            >
-              <Text className="text-white text-lg">📥</Text>
-            </Pressable>
             <Pressable 
               onPress={() => setModalType("add-part")}
               style={({ pressed }) => [pressed && { opacity: 0.7 }]}
@@ -621,6 +604,14 @@ export default function InventoryScreen() {
               value={newMinStock}
               onChangeText={setNewMinStock}
               keyboardType="decimal-pad"
+              className="bg-surface border border-border rounded-lg px-4 py-3 mb-3 text-foreground"
+              placeholderTextColor="#999"
+            />
+            
+            <TextInput
+              placeholder="仕入れ先（オプション）"
+              value={newSupplier}
+              onChangeText={setNewSupplier}
               className="bg-surface border border-border rounded-lg px-4 py-3 mb-3 text-foreground"
               placeholderTextColor="#999"
             />
