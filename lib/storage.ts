@@ -664,13 +664,14 @@ export async function getMonthlyInventorySummary(month: string, startDate?: Date
  * CSV からバッチ部品追加
  * CSV形式: 部品名,品番,単価,最低在庫数,小数対応,現在庫（現在庫は省略可能）
  */
-export async function importPartsFromCSV(csvContent: string): Promise<{ success: number; failed: number; errors: string[] }> {
+export async function importPartsFromCSV(csvContent: string): Promise<{ success: number; failed: number; errors: string[]; duplicates: Array<{ row: number; name: string; partNumber: string; supplier: string }> }> {
   try {
     const lines = csvContent.trim().split('\n');
     const parts = await getParts();
     let success = 0;
     let failed = 0;
     const errors: string[] = [];
+    const duplicates: Array<{ row: number; name: string; partNumber: string; supplier: string }> = [];
 
     // ヘッダーをスキップ
     for (let i = 1; i < lines.length; i++) {
@@ -680,14 +681,14 @@ export async function importPartsFromCSV(csvContent: string): Promise<{ success:
       try {
         const columns = line.split(',').map(v => v.trim());
         
-        // 最低5列必須（現在庫列は省略可能）
+        // 最低5列必須（現在庫列は省略可能、仕入先列は省略可能）
         if (columns.length < 5) {
           errors.push(`行${i + 1}: 列の数が不足しています（最低5列必須）`);
           failed++;
           continue;
         }
 
-        const [name, partNumber, unitPriceStr, minStockStr, allowDecimalStr, currentStockStr] = columns;
+        const [name, partNumber, unitPriceStr, minStockStr, allowDecimalStr, currentStockStr, supplierStr] = columns;
 
         if (!name || !partNumber) {
           errors.push(`行${i + 1}: 部品名と品番は必須です`);
@@ -699,12 +700,22 @@ export async function importPartsFromCSV(csvContent: string): Promise<{ success:
         const minStock = parseFloat(minStockStr) || 0;
         const allowDecimal = allowDecimalStr?.toLowerCase() === 'true' || allowDecimalStr === '○';
         const currentStock = currentStockStr ? parseFloat(currentStockStr) : 0;
+        const supplier = supplierStr || '';
 
-        // 重複チェック
-        if (parts.some(p => p.partNumber === partNumber)) {
-          errors.push(`行${i + 1}: 品番 ${partNumber} は既に存在します`);
-          failed++;
-          continue;
+        // 重複チェック（部品名、品番、仕入先が同一）
+        const duplicateIndex = parts.findIndex(
+          p => p.name === name && p.partNumber === partNumber && (p.supplier || '') === supplier
+        );
+
+        if (duplicateIndex !== -1) {
+          // 重複情報を記録
+          duplicates.push({
+            row: i + 1,
+            name,
+            partNumber,
+            supplier
+          });
+          continue; // ここではスキップ、後でユーザーの選択を待つ
         }
 
         const newPart: Part = {
@@ -715,6 +726,7 @@ export async function importPartsFromCSV(csvContent: string): Promise<{ success:
           currentStock,
           minStock,
           allowDecimal,
+          supplier,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
@@ -730,7 +742,7 @@ export async function importPartsFromCSV(csvContent: string): Promise<{ success:
     // すべての部品を保存
     await AsyncStorage.setItem(STORAGE_KEYS.PARTS, JSON.stringify(parts));
 
-    return { success, failed, errors };
+    return { success, failed, errors, duplicates };
   } catch (error) {
     console.error("Error importing parts from CSV:", error);
     throw error;
@@ -1095,6 +1107,113 @@ export async function importInboundRecordsFromCSV(csvContent: string): Promise<{
     return { success: successCount, failed: failureCount };
   } catch (error) {
     console.error("Error importing inbound records from CSV:", error);
+    throw error;
+  }
+}
+
+
+/**
+ * CSVインポート時に重複部品を上書き
+ */
+export async function importPartsFromCSVWithOverwrite(
+  csvContent: string,
+  overwriteRows: number[]
+): Promise<{ success: number; failed: number; errors: string[] }> {
+  try {
+    const lines = csvContent.trim().split('\n');
+    const parts = await getParts();
+    let success = 0;
+    let failed = 0;
+    const errors: string[] = [];
+    let dataRowIndex = 0;
+
+    // ヘッダーをスキップ
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+
+      try {
+        const columns = line.split(',').map(v => v.trim());
+        
+        if (columns.length < 5) {
+          errors.push(`行${i + 1}: 列の数が不足しています（最低5列必須）`);
+          failed++;
+          dataRowIndex++;
+          continue;
+        }
+
+        const [name, partNumber, unitPriceStr, minStockStr, allowDecimalStr, currentStockStr, supplierStr] = columns;
+
+        if (!name || !partNumber) {
+          errors.push(`行${i + 1}: 部品名と品番は必須です`);
+          failed++;
+          dataRowIndex++;
+          continue;
+        }
+
+        const unitPrice = parseFloat(unitPriceStr) || 0;
+        const minStock = parseFloat(minStockStr) || 0;
+        const allowDecimal = allowDecimalStr?.toLowerCase() === 'true' || allowDecimalStr === '○';
+        const currentStock = currentStockStr ? parseFloat(currentStockStr) : 0;
+        const supplier = supplierStr || '';
+
+        // 重複チェック
+        const duplicateIndex = parts.findIndex(
+          p => p.name === name && p.partNumber === partNumber && (p.supplier || '') === supplier
+        );
+
+        if (duplicateIndex !== -1) {
+          // 上書きリストに含まれている場合のみ上書き
+          if (overwriteRows.includes(dataRowIndex)) {
+            parts[duplicateIndex] = {
+              ...parts[duplicateIndex],
+              name,
+              partNumber,
+              unitPrice,
+              minStock,
+              allowDecimal,
+              currentStock,
+              supplier,
+              updatedAt: new Date().toISOString(),
+            };
+            success++;
+          } else {
+            errors.push(`行${i + 1}: 品番 ${partNumber} は既に存在します（スキップ）`);
+            failed++;
+          }
+          dataRowIndex++;
+          continue;
+        }
+
+        const newPart: Part = {
+          id: generateId(),
+          name,
+          partNumber,
+          unitPrice,
+          currentStock,
+          minStock,
+          allowDecimal,
+          supplier,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        parts.push(newPart);
+        success++;
+        dataRowIndex++;
+      } catch (error) {
+        errors.push(`行${i + 1}: パース エラー - ${String(error)}`);
+        failed++;
+        dataRowIndex++;
+      }
+    }
+
+    // すべての部品を保存
+    await AsyncStorage.setItem(STORAGE_KEYS.PARTS, JSON.stringify(parts));
+
+    return { success, failed, errors };
+  } catch (error) {
+    console.error("Error importing parts from CSV with overwrite:", error);
     throw error;
   }
 }

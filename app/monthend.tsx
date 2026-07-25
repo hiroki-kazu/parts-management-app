@@ -23,6 +23,7 @@ import {
   getMonthlyInventorySummary,
   generatePartsCSVTemplate,
   importPartsFromCSV,
+  importPartsFromCSVWithOverwrite,
   generateOutboundRecordsCSVTemplate,
   generateInboundRecordsCSVTemplate,
   importOutboundRecordsFromCSV,
@@ -138,7 +139,74 @@ export default function DataProcessingScreen() {
       // CSVをインポート
       const importResult = await importPartsFromCSV(cleanedContent);
       
-      // 結果を表示
+      // 重複部品がある場合は確認ポップアップを表示
+      if (importResult.duplicates && importResult.duplicates.length > 0) {
+        return new Promise((resolve) => {
+          Alert.alert(
+            '重複部品が見つかりました',
+            `${importResult.duplicates.length}件の重複部品が見つかりました。\n上書きしますか？`,
+            [
+              {
+                text: 'キャンセル',
+                onPress: () => {
+                  setIsProcessing(false);
+                  resolve(null);
+                },
+                style: 'cancel',
+              },
+              {
+                text: 'スキップ',
+                onPress: () => {
+                  // 重複部品をスキップして、新規部品のみをインポート
+                  let message = `成功: ${importResult.success}件`;
+                  if (importResult.duplicates.length > 0) {
+                    message += `\nスキップ: ${importResult.duplicates.length}件（重複）`;
+                  }
+                  if (importResult.failed > 0) {
+                    message += `\n失敗: ${importResult.failed}件`;
+                  }
+                  Alert.alert('インポート完了', message);
+                  setIsProcessing(false);
+                  resolve(null);
+                },
+              },
+              {
+                text: '上書き',
+                onPress: async () => {
+                  try {
+                    // 重複部品を上書き
+                    const overwriteRows = importResult.duplicates.map((_, idx) => idx);
+                    const overwriteResult = await importPartsFromCSVWithOverwrite(cleanedContent, overwriteRows);
+                    
+                    let message = `成功: ${overwriteResult.success}件`;
+                    if (overwriteResult.failed > 0) {
+                      message += `\n失敗: ${overwriteResult.failed}件`;
+                      if (overwriteResult.errors.length > 0) {
+                        message += `\n\nエラー:\n${overwriteResult.errors.slice(0, 3).join('\n')}`;
+                        if (overwriteResult.errors.length > 3) {
+                          message += `\n他${overwriteResult.errors.length - 3}件...`;
+                        }
+                      }
+                    }
+                    
+                    Alert.alert('インポート完了', message);
+                    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    setIsProcessing(false);
+                    resolve(null);
+                  } catch (error) {
+                    console.error('Error overwriting parts:', error);
+                    Alert.alert('エラー', 'CSVインポート（上書き）に失敗しました');
+                    setIsProcessing(false);
+                    resolve(null);
+                  }
+                },
+              },
+            ]
+          );
+        });
+      }
+      
+      // 重複部品がない場合の結果表示
       let message = `成功: ${importResult.success}件`;
       if (importResult.failed > 0) {
         message += `\n失敗: ${importResult.failed}件`;
