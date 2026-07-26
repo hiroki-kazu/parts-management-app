@@ -386,7 +386,7 @@ export default function InboundScreen() {
         {/* 仕入先 */}
         <View className="mb-4">
           <Text className="text-sm font-semibold text-foreground mb-2">仕入先 *</Text>
-          <View className="relative">
+          <View>
             <TextInput
               ref={supplierInputRef}
               placeholder="仕入先を入力"
@@ -413,7 +413,7 @@ export default function InboundScreen() {
             />
             {/* ドロップダウンリスト */}
             {isSupplierDropdownVisible && filteredSuppliers.length > 0 && (
-              <View className="absolute top-full left-0 right-0 bg-surface border border-border rounded-lg mt-1 max-h-48 z-10">
+              <View className="bg-surface border border-border rounded-lg mt-1 max-h-48">
                 <FlatList
                   data={filteredSuppliers}
                   renderItem={({ item }) => (
@@ -428,6 +428,7 @@ export default function InboundScreen() {
                   )}
                   keyExtractor={(item, index) => `${item}-${index}`}
                   scrollEnabled={true}
+                  nestedScrollEnabled={true}
                 />
               </View>
             )}

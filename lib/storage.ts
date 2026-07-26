@@ -1271,10 +1271,14 @@ const FAVORITE_PARTS_KEY = "favorite_parts";
 export async function getFavoriteParts(): Promise<string[]> {
   try {
     const json = await AsyncStorage.getItem(FAVORITE_PARTS_KEY);
+    console.log("[getFavoriteParts] Retrieved data:", json);
     if (!json) {
+      console.log("[getFavoriteParts] No favorite parts found, returning empty array");
       return [];
     }
-    return JSON.parse(json);
+    const parsed = JSON.parse(json);
+    console.log("[getFavoriteParts] Parsed favorite parts:", parsed);
+    return parsed;
   } catch (error) {
     console.error("Error getting favorite parts:", error);
     return [];
@@ -1316,7 +1320,11 @@ export async function removeFavoritePart(partId: string): Promise<void> {
  */
 export async function updateFavoriteParts(partIds: string[]): Promise<void> {
   try {
+    console.log("[updateFavoriteParts] Saving favorite parts:", partIds);
     await AsyncStorage.setItem(FAVORITE_PARTS_KEY, JSON.stringify(partIds));
+    // 保存後、実際に保存されたか確認
+    const saved = await AsyncStorage.getItem(FAVORITE_PARTS_KEY);
+    console.log("[updateFavoriteParts] Verified saved data:", saved);
   } catch (error) {
     console.error("Error updating favorite parts:", error);
     throw error;

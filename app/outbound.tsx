@@ -596,8 +596,8 @@ export default function OutboundScreen() {
           transparent
           onRequestClose={() => setIsEditFavoritesVisible(false)}
         >
-          <View className="flex-1 bg-black/50 justify-end">
-            <View className="bg-background rounded-t-2xl max-h-[80%]">
+          <View className="flex-1 bg-black/50 justify-center items-center p-4">
+            <View className="bg-background rounded-2xl w-full max-w-md max-h-[90%]">
               <View className="p-4 border-b border-border">
                 <Text className="text-lg font-bold text-foreground mb-3">よく使う部品を編集</Text>
                 <Text className="text-xs text-muted mb-3">チェックを入れた部品がよく使う部品として表示されます</Text>
@@ -624,6 +624,7 @@ export default function OutboundScreen() {
                 )}
                 keyExtractor={(item) => item.id}
                 scrollEnabled={true}
+                nestedScrollEnabled={true}
               />
               <View className="flex-row gap-3 p-4 border-t border-border">
                 <Pressable
