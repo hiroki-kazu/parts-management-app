@@ -401,10 +401,24 @@ export async function getPart(id: string): Promise<Part | null> {
 }
 
 /**
- * よく使う部品を取得（使用回数上位5件）
+ * よく使う部品を取得
+ * 1. ユーザーが保存したよく使う部品リストを優先的に返す
+ * 2. 保存されていない場合、使用回数上位を返す
  */
 export async function getFrequentParts(limit: number = 5): Promise<Part[]> {
   try {
+    // 1. ユーザーが保存したよく使う部品リストを取得
+    const favoritePartIds = await getFavoriteParts();
+    console.log("[getFrequentParts] Favorite part IDs:", favoritePartIds);
+    
+    if (favoritePartIds.length > 0) {
+      const parts = await getParts();
+      const favoriteParts = parts.filter((p) => favoritePartIds.includes(p.id));
+      console.log("[getFrequentParts] Returning favorite parts:", favoriteParts);
+      return favoriteParts.slice(0, limit);
+    }
+
+    // 2. 保存されていない場合、使用回数上位を返す
     const records = await getOutboundRecords();
     const partUsageMap = new Map<string, number>();
 
@@ -423,6 +437,7 @@ export async function getFrequentParts(limit: number = 5): Promise<Part[]> {
       .slice(0, limit)
       .map((item) => item.part);
 
+    console.log("[getFrequentParts] Returning usage-based frequent parts:", frequentParts);
     return frequentParts;
   } catch (error) {
     console.error("Error getting frequent parts:", error);

@@ -112,7 +112,13 @@ export default function OutboundScreen() {
   const loadFavoriteParts = async () => {
     try {
       const favorites = await getFavoriteParts();
+      console.log("[outbound loadFavoriteParts] Loaded favorite part IDs:", favorites);
       setFavoritesInEdit(favorites);
+      
+      // よく使う部品を再読み込み
+      const frequent = await getFrequentParts(5);
+      console.log("[outbound loadFavoriteParts] Reloaded frequent parts:", frequent);
+      setFrequentParts(frequent);
     } catch (error) {
       console.error("Error loading favorite parts:", error);
     }
@@ -222,6 +228,11 @@ export default function OutboundScreen() {
       await updateFavoriteParts(validFavorites);
       console.log("[handleSaveFavorites] Saved successfully");
       
+      // 保存後、実際に保存されたか確認
+      const saved = await getFavoriteParts();
+      console.log("[handleSaveFavorites] Verified saved favorites:", saved);
+      
+      // UI更新
       setIsEditFavoritesVisible(false);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert("成功", "よく使う部品を更新しました");
@@ -231,8 +242,8 @@ export default function OutboundScreen() {
       console.log("[handleSaveFavorites] Reloaded frequent parts:", frequent);
       setFrequentParts(frequent);
     } catch (error) {
-      console.error("Error saving favorite parts:", error);
-      Alert.alert("エラー", "よく使う部品の保存に失敗しました");
+      console.error("[handleSaveFavorites] Error saving favorite parts:", error);
+      Alert.alert("エラー", "よく使う部品の保存に失敗しました: " + String(error));
     }
   };
 
