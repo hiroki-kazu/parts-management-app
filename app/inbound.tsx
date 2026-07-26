@@ -153,10 +153,16 @@ export default function InboundScreen() {
 
   const handleSupplierSelect = (supplier: string) => {
     console.log("[handleSupplierSelect] Selected supplier:", supplier);
-    setForm((prev) => ({
-      ...prev,
-      supplier: supplier,
-    }));
+    // フォーム状態を更新
+    setForm((prev) => {
+      const updated = {
+        ...prev,
+        supplier: supplier,
+      };
+      console.log("[handleSupplierSelect] Updated form:", updated);
+      return updated;
+    });
+    // ドロップダウンを非表示
     setIsSupplierDropdownVisible(false);
   };
 
@@ -419,8 +425,10 @@ export default function InboundScreen() {
                 }, 100);
               }}
               onBlur={() => {
-                // ドロップダウン選択時のタイミング問題を避けるため、遅延を削除
-                setIsSupplierDropdownVisible(false);
+                // ドロップダウン選択時のタイミング問題を避けるため、遅延を追加
+                setTimeout(() => {
+                  setIsSupplierDropdownVisible(false);
+                }, 200);
               }}
               className="bg-surface border border-border rounded-lg px-4 py-3 text-foreground text-base"
               placeholderTextColor="#999"
@@ -432,7 +440,10 @@ export default function InboundScreen() {
                   data={filteredSuppliers}
                   renderItem={({ item }) => (
                     <Pressable
-                      onPress={() => handleSupplierSelect(item)}
+                      onPress={() => {
+                        console.log("[Pressable] Pressed supplier:", item);
+                        handleSupplierSelect(item);
+                      }}
                       style={({ pressed }) => [pressed && { opacity: 0.7 }]}
                     >
                       <View className="border-b border-border p-3">
