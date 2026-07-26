@@ -27,6 +27,9 @@ import {
   getFrequentParts,
   getPartsByVehicleNumber,
   getOutboundRecordByVoucherNumber,
+  getFavoriteParts,
+  addFavoritePart,
+  removeFavoritePart,
 } from "@/lib/storage";
 import { Part, Customer } from "@/lib/types";
 import * as Haptics from "expo-haptics";
@@ -88,10 +91,12 @@ export default function OutboundScreen() {
   const [frequentParts, setFrequentParts] = useState<Part[]>([]);
   const [vehicleHistoryParts, setVehicleHistoryParts] = useState<Part[]>([]);
   const [isPartModalVisible, setIsPartModalVisible] = useState(false);
+  const [isEditFavoritesVisible, setIsEditFavoritesVisible] = useState(false);
   const [partSearchText, setPartSearchText] = useState("");
   const [quantityInputText, setQuantityInputText] = useState("1");
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [favoritesInEdit, setFavoritesInEdit] = useState<string[]>([]);
   const scrollViewRef = useRef<ScrollView>(null);
   const quantityInputRef = useRef<TextInput>(null);
   const voucherInputRef = useRef<TextInput>(null);
@@ -100,7 +105,17 @@ export default function OutboundScreen() {
 
   useEffect(() => {
     loadParts();
+    loadFavoriteParts();
   }, []);
+
+  const loadFavoriteParts = async () => {
+    try {
+      const favorites = await getFavoriteParts();
+      setFavoritesInEdit(favorites);
+    } catch (error) {
+      console.error("Error loading favorite parts:", error);
+    }
+  };
 
   useEffect(() => {
     if (form.voucherNumber.length > 0) {
@@ -181,6 +196,40 @@ export default function OutboundScreen() {
       // スクロールして数量入力フィールドを表示
       scrollViewRef.current?.scrollToEnd({ animated: true });
     }, 300);
+  };
+
+  const handleToggleFavoritePart = async (partId: string) => {
+    try {
+      if (favoritesInEdit.includes(partId)) {
+        setFavoritesInEdit(favoritesInEdit.filter((id) => id !== partId));
+      } else {
+        setFavoritesInEdit([...favoritesInEdit, partId]);
+      }
+    } catch (error) {
+      console.error("Error toggling favorite part:", error);
+    }
+  };
+
+  const handleSaveFavorites = async () => {
+    try {
+      const partsMap = new Map(parts.map((p) => [p.id, p]));
+      const validFavorites = favoritesInEdit.filter((id) => partsMap.has(id));
+      
+      // storage.tsの関数を使用して保存
+      const { updateFavoriteParts } = await import("@/lib/storage");
+      await updateFavoriteParts(validFavorites);
+      
+      setIsEditFavoritesVisible(false);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert("成功", "よく使う部品を更新しました");
+      
+      // よく使う部品を再読み込み
+      const frequent = await getFrequentParts(5);
+      setFrequentParts(frequent);
+    } catch (error) {
+      console.error("Error saving favorite parts:", error);
+      Alert.alert("エラー", "よく使う部品の保存に失敗しました");
+    }
   };
 
   const handleQuantityChange = (delta: number) => {
@@ -285,6 +334,8 @@ export default function OutboundScreen() {
       p.name.includes(partSearchText) ||
       p.partNumber.includes(partSearchText)
   );
+
+  const isFavoritePart = (partId: string) => favoritesInEdit.includes(partId);
 
   const renderPartOption = ({ item }: { item: Part }) => (
     <Pressable
@@ -434,7 +485,18 @@ export default function OutboundScreen() {
           {/* よく使う部品 */}
           {frequentParts.length > 0 && !form.partId && (
             <View className="mt-3">
-              <Text className="text-xs text-muted mb-2">よく使う部品</Text>
+              <View className="flex-row items-center justify-between mb-2">
+                <Text className="text-xs text-muted">よく使う部品</Text>
+                <Pressable
+                  onPress={() => {
+                    setFavoritesInEdit(frequentParts.map((p) => p.id));
+                    setIsEditFavoritesVisible(true);
+                  }}
+                  style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+                >
+                  <Text className="text-xs text-primary font-semibold">✏️ 編集</Text>
+                </Pressable>
+              </View>
               <View className="flex-row flex-wrap gap-2">
                 {frequentParts.map((part) => (
                   <Pressable
@@ -527,6 +589,62 @@ export default function OutboundScreen() {
         </Pressable>
         </ScrollView>
 
+        {/* よく使う部品編集モーダル */}
+        <Modal
+          visible={isEditFavoritesVisible}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setIsEditFavoritesVisible(false)}
+        >
+          <View className="flex-1 bg-black/50 justify-end">
+            <View className="bg-background rounded-t-2xl max-h-[80%]">
+              <View className="p-4 border-b border-border">
+                <Text className="text-lg font-bold text-foreground mb-3">よく使う部品を編集</Text>
+                <Text className="text-xs text-muted mb-3">チェックを入れた部品がよく使う部品として表示されます</Text>
+              </View>
+              <FlatList
+                data={parts}
+                renderItem={({ item }) => (
+                  <Pressable
+                    onPress={() => handleToggleFavoritePart(item.id)}
+                    style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+                  >
+                    <View className="flex-row items-center gap-3 p-4 border-b border-border">
+                      <View className={`w-6 h-6 rounded border-2 ${
+                        isFavoritePart(item.id) ? "bg-primary border-primary" : "border-border"
+                      }`}>
+                        {isFavoritePart(item.id) && <Text className="text-white text-center text-sm">✓</Text>}
+                      </View>
+                      <View className="flex-1">
+                        <Text className="font-semibold text-foreground">{item.name}</Text>
+                        <Text className="text-xs text-muted">{item.partNumber}</Text>
+                      </View>
+                    </View>
+                  </Pressable>
+                )}
+                keyExtractor={(item) => item.id}
+                scrollEnabled={true}
+              />
+              <View className="flex-row gap-3 p-4 border-t border-border">
+                <Pressable
+                  onPress={() => setIsEditFavoritesVisible(false)}
+                  className="flex-1 bg-muted rounded-lg py-3"
+                  style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+                >
+                  <Text className="text-center text-foreground font-semibold">キャンセル</Text>
+                </Pressable>
+                <Pressable
+                  onPress={handleSaveFavorites}
+                  className="flex-1 bg-primary rounded-lg py-3"
+                  style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+                >
+                  <Text className="text-center text-white font-semibold">保存</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
         {/* 部品選択モーダル */}
         <Modal
           visible={isPartModalVisible}
@@ -587,3 +705,5 @@ export default function OutboundScreen() {
     </KeyboardAvoidingView>
   );
 }
+
+

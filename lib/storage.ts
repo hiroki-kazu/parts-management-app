@@ -1258,3 +1258,67 @@ export async function getSuppliers(): Promise<string[]> {
     return [];
   }
 }
+
+
+/**
+ * よく使う部品リスト用のストレージキー
+ */
+const FAVORITE_PARTS_KEY = "favorite_parts";
+
+/**
+ * よく使う部品リストを取得
+ */
+export async function getFavoriteParts(): Promise<string[]> {
+  try {
+    const json = await AsyncStorage.getItem(FAVORITE_PARTS_KEY);
+    if (!json) {
+      return [];
+    }
+    return JSON.parse(json);
+  } catch (error) {
+    console.error("Error getting favorite parts:", error);
+    return [];
+  }
+}
+
+/**
+ * よく使う部品を追加
+ */
+export async function addFavoritePart(partId: string): Promise<void> {
+  try {
+    const favorites = await getFavoriteParts();
+    if (!favorites.includes(partId)) {
+      favorites.push(partId);
+      await AsyncStorage.setItem(FAVORITE_PARTS_KEY, JSON.stringify(favorites));
+    }
+  } catch (error) {
+    console.error("Error adding favorite part:", error);
+    throw error;
+  }
+}
+
+/**
+ * よく使う部品を削除
+ */
+export async function removeFavoritePart(partId: string): Promise<void> {
+  try {
+    const favorites = await getFavoriteParts();
+    const filtered = favorites.filter((id) => id !== partId);
+    await AsyncStorage.setItem(FAVORITE_PARTS_KEY, JSON.stringify(filtered));
+  } catch (error) {
+    console.error("Error removing favorite part:", error);
+    throw error;
+  }
+}
+
+/**
+ * よく使う部品リストを一括更新
+ */
+export async function updateFavoriteParts(partIds: string[]): Promise<void> {
+  try {
+    await AsyncStorage.setItem(FAVORITE_PARTS_KEY, JSON.stringify(partIds));
+  } catch (error) {
+    console.error("Error updating favorite parts:", error);
+    throw error;
+  }
+}
