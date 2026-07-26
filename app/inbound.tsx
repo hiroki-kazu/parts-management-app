@@ -146,6 +146,7 @@ export default function InboundScreen() {
   };
 
   const handleSupplierSelect = (supplier: string) => {
+    console.log("[handleSupplierSelect] Selected supplier:", supplier);
     setForm((prev) => ({
       ...prev,
       supplier: supplier,
@@ -167,10 +168,13 @@ export default function InboundScreen() {
 
   const handleSaveFavorites = async () => {
     try {
+      console.log("[inbound] Starting save with favorites:", favoritesInEdit);
       const partsMap = new Map(parts.map((p) => [p.id, p]));
       const validFavorites = favoritesInEdit.filter((id) => partsMap.has(id));
+      console.log("[inbound] Valid favorites:", validFavorites);
       
       await updateFavoriteParts(validFavorites);
+      console.log("[inbound] Saved successfully");
       
       setIsEditFavoritesVisible(false);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -178,6 +182,7 @@ export default function InboundScreen() {
       
       // よく使う部品を再読み込み
       const frequent = await getFrequentParts(5);
+      console.log("[inbound] Reloaded frequent parts:", frequent);
       setFrequentParts(frequent);
     } catch (error) {
       console.error("Error saving favorite parts:", error);
@@ -404,9 +409,8 @@ export default function InboundScreen() {
                 }, 100);
               }}
               onBlur={() => {
-                setTimeout(() => {
-                  setIsSupplierDropdownVisible(false);
-                }, 200);
+                // ドロップダウン選択時のタイミング問題を避けるため、遅延を削除
+                setIsSupplierDropdownVisible(false);
               }}
               className="bg-surface border border-border rounded-lg px-4 py-3 text-foreground text-base"
               placeholderTextColor="#999"

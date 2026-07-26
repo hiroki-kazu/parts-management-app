@@ -30,6 +30,7 @@ import {
   getFavoriteParts,
   addFavoritePart,
   removeFavoritePart,
+  updateFavoriteParts,
 } from "@/lib/storage";
 import { Part, Customer } from "@/lib/types";
 import * as Haptics from "expo-haptics";
@@ -212,12 +213,14 @@ export default function OutboundScreen() {
 
   const handleSaveFavorites = async () => {
     try {
+      console.log("[handleSaveFavorites] Starting save with favorites:", favoritesInEdit);
       const partsMap = new Map(parts.map((p) => [p.id, p]));
       const validFavorites = favoritesInEdit.filter((id) => partsMap.has(id));
+      console.log("[handleSaveFavorites] Valid favorites:", validFavorites);
       
-      // storage.tsの関数を使用して保存
-      const { updateFavoriteParts } = await import("@/lib/storage");
+      // updateFavoritePartsを直接使用
       await updateFavoriteParts(validFavorites);
+      console.log("[handleSaveFavorites] Saved successfully");
       
       setIsEditFavoritesVisible(false);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -225,6 +228,7 @@ export default function OutboundScreen() {
       
       // よく使う部品を再読み込み
       const frequent = await getFrequentParts(5);
+      console.log("[handleSaveFavorites] Reloaded frequent parts:", frequent);
       setFrequentParts(frequent);
     } catch (error) {
       console.error("Error saving favorite parts:", error);
