@@ -17,7 +17,7 @@ import {
 } from "react-native";
 import { ScreenContainer } from "@/components/screen-container";
 import { useRouter } from "expo-router";
-import { getParts, updatePart, addPart, deletePart, importPartsFromCSV } from "@/lib/storage";
+import { getParts, updatePart, addPart, deletePart, importPartsFromCSV, getSuppliers } from "@/lib/storage";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import { Part, InventoryStatus } from "@/lib/types";
@@ -52,6 +52,8 @@ export default function InventoryScreen() {
   const [newMinStock, setNewMinStock] = useState("");
   const [newSupplier, setNewSupplier] = useState("");
   const [newAllowDecimal, setNewAllowDecimal] = useState(false);
+  const [suppliers, setSuppliers] = useState<string[]>([]);
+  const [isSupplierDropdownVisible, setIsSupplierDropdownVisible] = useState(false);
 
   // インポート機能
   const handleImportParts = async () => {
@@ -96,8 +98,18 @@ export default function InventoryScreen() {
   useFocusEffect(
     useCallback(() => {
       loadInventory();
+      loadSuppliers();
     }, [])
   );
+
+  const loadSuppliers = async () => {
+    try {
+      const data = await getSuppliers();
+      setSuppliers(data);
+    } catch (error) {
+      console.error("Error loading suppliers:", error);
+    }
+  };
 
   const loadInventory = async () => {
     try {
@@ -608,13 +620,47 @@ export default function InventoryScreen() {
               placeholderTextColor="#999"
             />
             
-            <TextInput
-              placeholder="仕入れ先（オプション）"
-              value={newSupplier}
-              onChangeText={setNewSupplier}
-              className="bg-surface border border-border rounded-lg px-4 py-3 mb-3 text-foreground"
-              placeholderTextColor="#999"
-            />
+            <View className="relative mb-3">
+              <TextInput
+                placeholder="仕入れ先（オプション）"
+                value={newSupplier}
+                onChangeText={(text) => {
+                  setNewSupplier(text);
+                  setIsSupplierDropdownVisible(text.length > 0);
+                }}
+                onFocus={() => setIsSupplierDropdownVisible(true)}
+                onBlur={() => {
+                  setTimeout(() => {
+                    setIsSupplierDropdownVisible(false);
+                  }, 200);
+                }}
+                className="bg-surface border border-border rounded-lg px-4 py-3 text-foreground"
+                placeholderTextColor="#999"
+              />
+              {/* ドロップダウンリスト */}
+              {isSupplierDropdownVisible && suppliers.filter((s) => s.toLowerCase().includes(newSupplier.toLowerCase())).length > 0 && (
+                <View className="absolute top-full left-0 right-0 bg-surface border border-border rounded-lg mt-1 max-h-40 z-10">
+                  <FlatList
+                    data={suppliers.filter((s) => s.toLowerCase().includes(newSupplier.toLowerCase()))}
+                    renderItem={({ item }) => (
+                      <Pressable
+                        onPress={() => {
+                          setNewSupplier(item);
+                          setIsSupplierDropdownVisible(false);
+                        }}
+                        style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+                      >
+                        <View className="border-b border-border p-3">
+                          <Text className="text-foreground">{item}</Text>
+                        </View>
+                      </Pressable>
+                    )}
+                    keyExtractor={(item, index) => `${item}-${index}`}
+                    scrollEnabled={true}
+                  />
+                </View>
+              )}
+            </View>
             
             {/* 小数使用フラグ */}
             <Pressable

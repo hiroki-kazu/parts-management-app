@@ -1217,3 +1217,44 @@ export async function importPartsFromCSVWithOverwrite(
     throw error;
   }
 }
+
+
+/**
+ * 既存の仕入先一覧を取得
+ * 部品マスタと入庫履歴から一意の仕入先を抽出
+ */
+export async function getSuppliers(): Promise<string[]> {
+  try {
+    const suppliers = new Set<string>();
+
+    // 部品マスタから仕入先を取得
+    const partsJson = await AsyncStorage.getItem(STORAGE_KEYS.PARTS);
+    if (partsJson) {
+      const parts: Part[] = JSON.parse(partsJson);
+      parts.forEach((part) => {
+        if (part.supplier && part.supplier.trim()) {
+          suppliers.add(part.supplier.trim());
+        }
+      });
+    }
+
+    // 入庫履歴から仕入先を取得
+    const inboundJson = await AsyncStorage.getItem(
+      STORAGE_KEYS.INBOUND_RECORDS
+    );
+    if (inboundJson) {
+      const inboundRecords: InboundRecord[] = JSON.parse(inboundJson);
+      inboundRecords.forEach((record) => {
+        if (record.supplier && record.supplier.trim()) {
+          suppliers.add(record.supplier.trim());
+        }
+      });
+    }
+
+    // ソートして返す
+    return Array.from(suppliers).sort();
+  } catch (error) {
+    console.error("Error getting suppliers:", error);
+    return [];
+  }
+}

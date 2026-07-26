@@ -24,6 +24,7 @@ import {
   getTodayDate,
   addInboundRecord,
   getFrequentParts,
+  getSuppliers,
 } from "@/lib/storage";
 import { Part } from "@/lib/types";
 import * as Haptics from "expo-haptics";
@@ -81,7 +82,9 @@ export default function InboundScreen() {
 
   const [parts, setParts] = useState<Part[]>([]);
   const [frequentParts, setFrequentParts] = useState<Part[]>([]);
+  const [suppliers, setSuppliers] = useState<string[]>([]);
   const [isPartModalVisible, setIsPartModalVisible] = useState(false);
+  const [isSupplierDropdownVisible, setIsSupplierDropdownVisible] = useState(false);
   const [partSearchText, setPartSearchText] = useState("");
   const [quantityInputText, setQuantityInputText] = useState("1");
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -93,6 +96,7 @@ export default function InboundScreen() {
 
   useEffect(() => {
     loadParts();
+    loadSuppliers();
   }, []);
 
   const loadParts = async () => {
@@ -106,6 +110,15 @@ export default function InboundScreen() {
     }
   };
 
+  const loadSuppliers = async () => {
+    try {
+      const data = await getSuppliers();
+      setSuppliers(data);
+    } catch (error) {
+      console.error("Error loading suppliers:", error);
+    }
+  };
+
   const handlePartSelect = (part: Part) => {
     setForm((prev) => ({
       ...prev,
@@ -116,6 +129,14 @@ export default function InboundScreen() {
     setQuantityInputText(part.allowDecimal ? "0.1" : "1");
     setIsPartModalVisible(false);
     setPartSearchText("");
+  };
+
+  const handleSupplierSelect = (supplier: string) => {
+    setForm((prev) => ({
+      ...prev,
+      supplier: supplier,
+    }));
+    setIsSupplierDropdownVisible(false);
   };
 
   const handleQuantityChange = (delta: number) => {
@@ -215,6 +236,21 @@ export default function InboundScreen() {
       p.partNumber.includes(partSearchText)
   );
 
+  const filteredSuppliers = suppliers.filter(
+    (s) => s.toLowerCase().includes(form.supplier.toLowerCase())
+  );
+
+  const renderSupplierOption = ({ item }: { item: string }) => (
+    <Pressable
+      onPress={() => handleSupplierSelect(item)}
+      style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+    >
+      <View className="bg-surface border-b border-border p-4">
+        <Text className="text-foreground">{item}</Text>
+      </View>
+    </Pressable>
+  );
+
   const renderPartOption = ({ item }: { item: Part }) => (
     <Pressable
       onPress={() => handlePartSelect(item)}
@@ -302,21 +338,52 @@ export default function InboundScreen() {
         {/* 仕入先 */}
         <View className="mb-4">
           <Text className="text-sm font-semibold text-foreground mb-2">仕入先 *</Text>
-          <TextInput
-            ref={supplierInputRef}
-            placeholder="仕入先を入力"
-            value={form.supplier}
-            onChangeText={(text) => setForm({ ...form, supplier: text })}
-            onFocus={() => {
-              setTimeout(() => {
-                supplierInputRef.current?.measure((x, y, width, height, pageX, pageY) => {
-                  scrollViewRef.current?.scrollTo({ y: pageY - 100, animated: true });
-                });
-              }, 100);
-            }}
-            className="bg-surface border border-border rounded-lg px-4 py-3 text-foreground text-base"
-            placeholderTextColor="#999"
-          />
+          <View className="relative">
+            <TextInput
+              ref={supplierInputRef}
+              placeholder="仕入先を入力"
+              value={form.supplier}
+              onChangeText={(text) => {
+                setForm({ ...form, supplier: text });
+                setIsSupplierDropdownVisible(text.length > 0);
+              }}
+              onFocus={() => {
+                setIsSupplierDropdownVisible(true);
+                setTimeout(() => {
+                  supplierInputRef.current?.measure((x, y, width, height, pageX, pageY) => {
+                    scrollViewRef.current?.scrollTo({ y: pageY - 100, animated: true });
+                  });
+                }, 100);
+              }}
+              onBlur={() => {
+                setTimeout(() => {
+                  setIsSupplierDropdownVisible(false);
+                }, 200);
+              }}
+              className="bg-surface border border-border rounded-lg px-4 py-3 text-foreground text-base"
+              placeholderTextColor="#999"
+            />
+            {/* ドロップダウンリスト */}
+            {isSupplierDropdownVisible && filteredSuppliers.length > 0 && (
+              <View className="absolute top-full left-0 right-0 bg-surface border border-border rounded-lg mt-1 max-h-48 z-10">
+                <FlatList
+                  data={filteredSuppliers}
+                  renderItem={({ item }) => (
+                    <Pressable
+                      onPress={() => handleSupplierSelect(item)}
+                      style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+                    >
+                      <View className="border-b border-border p-3">
+                        <Text className="text-foreground">{item}</Text>
+                      </View>
+                    </Pressable>
+                  )}
+                  keyExtractor={(item, index) => `${item}-${index}`}
+                  scrollEnabled={true}
+                />
+              </View>
+            )}
+          </View>
         </View>
 
         {/* 部品選択 */}
