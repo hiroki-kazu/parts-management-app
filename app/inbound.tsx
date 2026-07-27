@@ -9,6 +9,7 @@ import {
   Text,
   View,
   Pressable,
+  TouchableOpacity,
   TextInput,
   Modal,
   FlatList,
@@ -439,17 +440,17 @@ export default function InboundScreen() {
                 <FlatList
                   data={filteredSuppliers}
                   renderItem={({ item }) => (
-                    <Pressable
+                    <TouchableOpacity
                       onPress={() => {
-                        console.log("[Pressable] Pressed supplier:", item);
+                        console.log("[TouchableOpacity] Pressed supplier:", item);
                         handleSupplierSelect(item);
                       }}
-                      style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+                      activeOpacity={0.7}
                     >
                       <View className="border-b border-border p-3">
                         <Text className="text-foreground">{item}</Text>
                       </View>
-                    </Pressable>
+                    </TouchableOpacity>
                   )}
                   keyExtractor={(item, index) => `${item}-${index}`}
                   scrollEnabled={true}
