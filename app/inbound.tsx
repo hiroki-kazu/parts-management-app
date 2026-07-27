@@ -163,8 +163,10 @@ export default function InboundScreen() {
       console.log("[handleSupplierSelect] Updated form:", updated);
       return updated;
     });
-    // ドロップダウンを非表示
+    // ドロップダウンを非表示（遅延なしで即座に非表示）
     setIsSupplierDropdownVisible(false);
+    // フォーカスを外す
+    supplierInputRef.current?.blur();
   };
 
   const handleToggleFavoritePart = async (partId: string) => {
@@ -208,6 +210,23 @@ export default function InboundScreen() {
   };
 
   const isFavoritePart = (partId: string) => favoritesInEdit.includes(partId);
+
+  // ダブルタップ検出用の状態
+  const lastTapRef = useRef<number>(0);
+  const handleSupplierInputPress = () => {
+    const now = Date.now();
+    const DOUBLE_TAP_DELAY = 300;
+    
+    if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
+      console.log("[Double tap detected]");
+      // ダブルタップ時は何もしない
+    } else {
+      console.log("[Single tap detected]");
+      // 単一タップ時はドロップダウンを表示
+      setIsSupplierDropdownVisible(true);
+    }
+    lastTapRef.current = now;
+  };
 
   const handleQuantityChange = (delta: number) => {
     const selectedPart = parts.find((p) => p.id === form.partId);
@@ -415,7 +434,8 @@ export default function InboundScreen() {
               value={form.supplier}
               onChangeText={(text) => {
                 setForm({ ...form, supplier: text });
-                setIsSupplierDropdownVisible(text.length > 0);
+                // テキスト入力時は常にドロップダウンを表示（訂正時も対応）
+                setIsSupplierDropdownVisible(true);
               }}
               onFocus={() => {
                 setIsSupplierDropdownVisible(true);
@@ -436,11 +456,11 @@ export default function InboundScreen() {
             />
             {/* ドロップダウンリスト */}
             {isSupplierDropdownVisible && filteredSuppliers.length > 0 && (
-              <View className="bg-surface border border-border rounded-lg mt-1 max-h-48">
-                <FlatList
-                  data={filteredSuppliers}
-                  renderItem={({ item }) => (
+              <View className="bg-surface border border-border rounded-lg mt-1 max-h-48 z-50">
+                <ScrollView scrollEnabled={true}>
+                  {filteredSuppliers.map((item, index) => (
                     <TouchableOpacity
+                      key={`${item}-${index}`}
                       onPress={() => {
                         console.log("[TouchableOpacity] Pressed supplier:", item);
                         handleSupplierSelect(item);
@@ -451,11 +471,8 @@ export default function InboundScreen() {
                         <Text className="text-foreground">{item}</Text>
                       </View>
                     </TouchableOpacity>
-                  )}
-                  keyExtractor={(item, index) => `${item}-${index}`}
-                  scrollEnabled={true}
-                  nestedScrollEnabled={true}
-                />
+                  ))}
+                </ScrollView>
               </View>
             )}
           </View>
