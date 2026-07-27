@@ -520,7 +520,7 @@ export default function OutboundScreen() {
                     style={({ pressed }) => [pressed && { opacity: 0.7 }]}
                   >
                     <View className="bg-surface border border-primary rounded-full px-3 py-2">
-                      <Text className="text-xs text-foreground">{part.name}</Text>
+                      <Text className="text-xs text-foreground">{part.partNumber}</Text>
                     </View>
                   </Pressable>
                 ))}
