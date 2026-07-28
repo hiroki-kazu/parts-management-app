@@ -124,11 +124,13 @@ export default function InventoryScreen() {
       // ダブルタップ時に選択
       setNewSupplier(supplier);
       setIsSupplierDropdownVisible(false);
+      // ダブルタップ後はリセット
+      delete lastSupplierSelectTapRef.current[supplier];
     } else {
       console.log("[Supplier single tap detected]", supplier);
-      // 単一タップ時はハイライト表示（視覚的フィードバック）
+      // 単一タップ時は時刻を記録（次のタップを待つ）
+      lastSupplierSelectTapRef.current[supplier] = now;
     }
-    lastSupplierSelectTapRef.current[supplier] = now;
   };
 
   const loadInventory = async () => {
