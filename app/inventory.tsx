@@ -3,14 +3,13 @@
  * 全部品の現在在庫状態を表示
  */
 
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useFocusEffect } from "expo-router";
 import {
   ScrollView,
   Text,
   View,
   Pressable,
-  TouchableOpacity,
   TextInput,
   FlatList,
   Alert,
@@ -109,27 +108,6 @@ export default function InventoryScreen() {
       setSuppliers(data);
     } catch (error) {
       console.error("Error loading suppliers:", error);
-    }
-  };
-
-  // ドロップダウンアイテムのダブルタップ検出
-  const lastSupplierSelectTapRef = useRef<{ [key: string]: number }>({});
-  const handleSupplierItemPress = (supplier: string) => {
-    const now = Date.now();
-    const DOUBLE_TAP_DELAY = 300;
-    const lastTap = lastSupplierSelectTapRef.current[supplier] || 0;
-    
-    if (now - lastTap < DOUBLE_TAP_DELAY) {
-      console.log("[Supplier double tap detected]", supplier);
-      // ダブルタップ時に選択
-      setNewSupplier(supplier);
-      setIsSupplierDropdownVisible(false);
-      // ダブルタップ後はリセット
-      delete lastSupplierSelectTapRef.current[supplier];
-    } else {
-      console.log("[Supplier single tap detected]", supplier);
-      // 単一タップ時は時刻を記録（次のタップを待つ）
-      lastSupplierSelectTapRef.current[supplier] = now;
     }
   };
 
@@ -648,8 +626,7 @@ export default function InventoryScreen() {
                 value={newSupplier}
                 onChangeText={(text) => {
                   setNewSupplier(text);
-                  // テキスト入力時は常にドロップダウンを表示（訂正時も対応）
-                  setIsSupplierDropdownVisible(true);
+                  setIsSupplierDropdownVisible(text.length > 0);
                 }}
                 onFocus={() => setIsSupplierDropdownVisible(true)}
                 onBlur={() => {
@@ -662,20 +639,25 @@ export default function InventoryScreen() {
               />
               {/* ドロップダウンリスト */}
               {isSupplierDropdownVisible && suppliers.filter((s) => s.toLowerCase().includes(newSupplier.toLowerCase())).length > 0 && (
-                <View className="bg-surface border border-border rounded-lg mt-1 max-h-40 z-50">
-                  <ScrollView scrollEnabled={true}>
-                    {suppliers.filter((s) => s.toLowerCase().includes(newSupplier.toLowerCase())).map((item, index) => (
-                      <TouchableOpacity
-                        key={`${item}-${index}`}
-                        onPress={() => handleSupplierItemPress(item)}
-                        activeOpacity={0.7}
+                <View className="absolute top-full left-0 right-0 bg-surface border border-border rounded-lg mt-1 max-h-40 z-10">
+                  <FlatList
+                    data={suppliers.filter((s) => s.toLowerCase().includes(newSupplier.toLowerCase()))}
+                    renderItem={({ item }) => (
+                      <Pressable
+                        onPress={() => {
+                          setNewSupplier(item);
+                          setIsSupplierDropdownVisible(false);
+                        }}
+                        style={({ pressed }) => [pressed && { opacity: 0.7 }]}
                       >
                         <View className="border-b border-border p-3">
                           <Text className="text-foreground">{item}</Text>
                         </View>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
+                      </Pressable>
+                    )}
+                    keyExtractor={(item, index) => `${item}-${index}`}
+                    scrollEnabled={true}
+                  />
                 </View>
               )}
             </View>

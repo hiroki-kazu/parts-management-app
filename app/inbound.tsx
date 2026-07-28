@@ -212,23 +212,20 @@ export default function InboundScreen() {
   const isFavoritePart = (partId: string) => favoritesInEdit.includes(partId);
 
   // ダブルタップ検出用の状態
-  const lastSupplierSelectTapRef = useRef<{ [key: string]: number }>({});
-  const handleSupplierItemPress = (supplier: string) => {
+  const lastTapRef = useRef<number>(0);
+  const handleSupplierInputPress = () => {
     const now = Date.now();
     const DOUBLE_TAP_DELAY = 300;
-    const lastTap = lastSupplierSelectTapRef.current[supplier] || 0;
     
-    if (now - lastTap < DOUBLE_TAP_DELAY) {
-      console.log("[Supplier double tap detected]", supplier);
-      // ダブルタップ時に選択
-      handleSupplierSelect(supplier);
-      // ダブルタップ後はリセット
-      delete lastSupplierSelectTapRef.current[supplier];
+    if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
+      console.log("[Double tap detected]");
+      // ダブルタップ時は何もしない
     } else {
-      console.log("[Supplier single tap detected]", supplier);
-      // 単一タップ時は時刻を記録（次のタップを待つ）
-      lastSupplierSelectTapRef.current[supplier] = now;
+      console.log("[Single tap detected]");
+      // 単一タップ時はドロップダウンを表示
+      setIsSupplierDropdownVisible(true);
     }
+    lastTapRef.current = now;
   };
 
   const handleQuantityChange = (delta: number) => {
@@ -464,7 +461,10 @@ export default function InboundScreen() {
                   {filteredSuppliers.map((item, index) => (
                     <TouchableOpacity
                       key={`${item}-${index}`}
-                      onPress={() => handleSupplierItemPress(item)}
+                      onPress={() => {
+                        console.log("[TouchableOpacity] Pressed supplier:", item);
+                        handleSupplierSelect(item);
+                      }}
                       activeOpacity={0.7}
                     >
                       <View className="border-b border-border p-3">
@@ -515,7 +515,7 @@ export default function InboundScreen() {
                     style={({ pressed }) => [pressed && { opacity: 0.7 }]}
                   >
                     <View className="bg-surface border border-primary rounded-full px-3 py-2">
-                      <Text className="text-xs text-foreground">{part.partNumber}</Text>
+                      <Text className="text-xs text-foreground">{part.name}</Text>
                     </View>
                   </Pressable>
                 ))}
