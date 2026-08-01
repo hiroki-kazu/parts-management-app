@@ -486,6 +486,9 @@ export default function InboundScreen() {
             {/* ドロップダウンリスト */}
             {isSupplierDropdownVisible && filteredSuppliers.length > 0 && (
               <View className="bg-surface border border-border rounded-lg mt-1 max-h-48 z-50">
+                <View className="bg-primary/10 border-b border-primary p-2">
+                  <Text className="text-xs text-primary font-semibold text-center">📱 ダブルタップで選択</Text>
+                </View>
                 <ScrollView scrollEnabled={true}>
                   {filteredSuppliers.map((item, index) => (
                     <TouchableOpacity

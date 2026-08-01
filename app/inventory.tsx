@@ -640,6 +640,9 @@ export default function InventoryScreen() {
               {/* ドロップダウンリスト */}
               {isSupplierDropdownVisible && suppliers.filter((s) => s.toLowerCase().includes(newSupplier.toLowerCase())).length > 0 && (
                 <View className="absolute top-full left-0 right-0 bg-surface border border-border rounded-lg mt-1 max-h-40 z-10">
+                  <View className="bg-primary/10 border-b border-primary p-2">
+                    <Text className="text-xs text-primary font-semibold text-center">📱 ダブルタップで選択</Text>
+                  </View>
                   <FlatList
                     data={suppliers.filter((s) => s.toLowerCase().includes(newSupplier.toLowerCase()))}
                     renderItem={({ item }) => (
