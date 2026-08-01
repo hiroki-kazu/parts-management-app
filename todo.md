@@ -420,6 +420,6 @@
 - [x] help.tsxに必要なインポートを追加（getTutorialShown、setTutorialShown）
 - [x] help.tsxにTutorialStepインターフェース定義を追加
 - [x] help.tsxにModalとAlertのインポートを追加
-- [ ] help.tsxにチュートリアルモーダルUIコンポーネントを実装
-- [ ] help.tsxにuseEffectでチュートリアル表示フラグをチェック
-- [ ] help.tsxにステップナビゲーション機能を実装
+- [x] help.tsxにチュートリアルモーダルUIコンポーネントを実装
+- [x] help.tsxにuseEffectでチュートリアル表示フラグをチェック
+- [x] help.tsxにステップナビゲーション機能を実装

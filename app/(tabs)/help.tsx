@@ -159,15 +159,128 @@ const helpSections: HelpSection[] = [
   },
 ];
 
+const tutorialSteps: TutorialStep[] = [
+  {
+    title: "📱 データ処理へようこそ",
+    description: "このセクションでは、部品マスタの管理とデータのエクスポート・インポートができます。",
+    icon: "📊",
+  },
+  {
+    title: "📧 テンプレート送信",
+    description: "『テンプレートを送信』ボタンをタップすると、メールアプリが起動し、部品リストのテンプレートが添付されます。テンプレートをダウンロードして編集してください。",
+    icon: "📤",
+  },
+  {
+    title: "📥 CSVをインポート",
+    description: "編集したCSVファイルを『CSVを選択してインポート』でアップロードすると、部品情報が一括登録されます。",
+    icon: "📥",
+  },
+  {
+    title: "💾 データバックアップ",
+    description: "『ZIP形式でダウンロード』ボタンで、出庫履歴、入庫履歴、在庫サマリーをZIP形式で圧縮してメール送信できます。",
+    icon: "💾",
+  },
+];
+
 export default function HelpScreen() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
+
+  useEffect(() => {
+    const checkTutorial = async () => {
+      const shown = await getTutorialShown();
+      if (!shown) {
+        setShowTutorial(true);
+        await setTutorialShown(true);
+      }
+    };
+    checkTutorial();
+  }, []);
 
   const toggleSection = (id: string) => {
     setExpandedId(expandedId === id ? null : id);
   };
 
+  const handleNextStep = () => {
+    if (currentStep < tutorialSteps.length - 1) {
+      setCurrentStep(currentStep + 1);
+    } else {
+      setShowTutorial(false);
+    }
+  };
+
+  const handlePrevStep = () => {
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
+  const step = tutorialSteps[currentStep];
+
   return (
-    <ScreenContainer className="p-4">
+    <>
+      {/* チュートリアルモーダル */}
+      {showTutorial && (
+        <View className="absolute inset-0 bg-black/50 justify-center items-center p-4 z-50">
+          <View className="bg-white rounded-2xl p-6 max-w-sm w-full gap-4">
+            {/* ステップインジケーター */}
+            <View className="flex-row justify-center gap-2">
+              {tutorialSteps.map((_, idx) => (
+                <View
+                  key={idx}
+                  className={`h-2 rounded-full ${
+                    idx === currentStep ? "bg-primary w-8" : "bg-border w-2"
+                  }`}
+                />
+              ))}
+            </View>
+
+            {/* アイコン */}
+            <View className="items-center">
+              <Text className="text-5xl">{step.icon}</Text>
+            </View>
+
+            {/* タイトル */}
+            <Text className="text-2xl font-bold text-foreground text-center">
+              {step.title}
+            </Text>
+
+            {/* 説明 */}
+            <Text className="text-base text-muted text-center leading-relaxed">
+              {step.description}
+            </Text>
+
+            {/* ボタン */}
+            <View className="flex-row gap-3 mt-4">
+              {currentStep > 0 && (
+                <Pressable
+                  onPress={handlePrevStep}
+                  style={({ pressed }) => [{
+                    opacity: pressed ? 0.7 : 1,
+                  }]}
+                  className="flex-1 py-3 px-4 bg-border rounded-lg items-center"
+                >
+                  <Text className="text-foreground font-semibold">戻る</Text>
+                </Pressable>
+              )}
+              <Pressable
+                onPress={handleNextStep}
+                style={({ pressed }) => [{
+                  opacity: pressed ? 0.7 : 1,
+                }]}
+                className="flex-1 py-3 px-4 bg-primary rounded-lg items-center"
+              >
+                <Text className="text-white font-semibold">
+                  {currentStep === tutorialSteps.length - 1 ? "完了" : "次へ"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      )}
+
+      <ScreenContainer className="p-4">
       <ScrollView contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }}>
         <View className="gap-4">
           {/* Header */}
@@ -251,5 +364,6 @@ export default function HelpScreen() {
         </View>
       </ScrollView>
     </ScreenContainer>
+    </>
   );
 }
