@@ -1,6 +1,7 @@
-import { ScrollView, Text, View, Pressable } from "react-native";
-import { useState } from "react";
+import { ScrollView, Text, View, Pressable, Modal, Alert } from "react-native";
+import { useState, useEffect } from "react";
 import { ScreenContainer } from "@/components/screen-container";
+import { getTutorialShown, setTutorialShown } from "@/lib/storage";
 
 interface HelpSection {
   id: string;
@@ -8,6 +9,12 @@ interface HelpSection {
   icon: string;
   content: string[];
   steps?: string[];
+}
+
+interface TutorialStep {
+  title: string;
+  description: string;
+  icon: string;
 }
 
 const helpSections: HelpSection[] = [

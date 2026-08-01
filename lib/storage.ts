@@ -1345,3 +1345,27 @@ export async function updateFavoriteParts(partIds: string[]): Promise<void> {
     throw error;
   }
 }
+
+
+/**
+ * チュートリアル表示フラグ管理
+ */
+const TUTORIAL_SHOWN_KEY = "tutorialShown";
+
+export async function getTutorialShown(): Promise<boolean> {
+  try {
+    const shown = await AsyncStorage.getItem(TUTORIAL_SHOWN_KEY);
+    return shown === "true";
+  } catch (error) {
+    console.error("[getTutorialShown] Error:", error);
+    return false;
+  }
+}
+
+export async function setTutorialShown(shown: boolean): Promise<void> {
+  try {
+    await AsyncStorage.setItem(TUTORIAL_SHOWN_KEY, shown ? "true" : "false");
+  } catch (error) {
+    console.error("[setTutorialShown] Error:", error);
+  }
+}

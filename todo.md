@@ -411,3 +411,15 @@
 - [x] 出庫画面によく使う部品編集機能を追加
 - [x] 入庫画面によく使う部品編集機能を追加
 - [x] よく使う部品リストの永続化
+
+
+## 初回ユーザー向けチュートリアル機能
+
+### 実装項目
+- [x] storage.tsにチュートリアル表示フラグ管理関数を追加（getTutorialShown、setTutorialShown）
+- [x] help.tsxに必要なインポートを追加（getTutorialShown、setTutorialShown）
+- [x] help.tsxにTutorialStepインターフェース定義を追加
+- [x] help.tsxにModalとAlertのインポートを追加
+- [ ] help.tsxにチュートリアルモーダルUIコンポーネントを実装
+- [ ] help.tsxにuseEffectでチュートリアル表示フラグをチェック
+- [ ] help.tsxにステップナビゲーション機能を実装
