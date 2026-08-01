@@ -83,6 +83,8 @@ export default function InboundScreen() {
     quantity: 1,
   });
 
+  const [inboundItems, setInboundItems] = useState<InboundForm[]>([]);
+
   const [parts, setParts] = useState<Part[]>([]);
   const [frequentParts, setFrequentParts] = useState<Part[]>([]);
   const [suppliers, setSuppliers] = useState<string[]>([]);
@@ -259,6 +261,33 @@ export default function InboundScreen() {
       ...prev,
       quantity: num,
     }));
+  };
+
+  const handleAddItem = () => {
+    if (!form.partId) {
+      Alert.alert("エラー", "部品を選択してください");
+      return;
+    }
+    if (form.quantity <= 0) {
+      Alert.alert("エラー", "数量は0より大きい値を入力してください");
+      return;
+    }
+    
+    setInboundItems([...inboundItems, { ...form }]);
+    setForm({
+      date: form.date,
+      voucherNumber: form.voucherNumber,
+      supplier: form.supplier,
+      partId: "",
+      partName: "",
+      quantity: 1,
+    });
+    setQuantityInputText("1");
+    setPartSearchText("");
+  };
+
+  const handleRemoveItem = (index: number) => {
+    setInboundItems(inboundItems.filter((_, i) => i !== index));
   };
 
   const handleSave = async () => {
@@ -515,7 +544,7 @@ export default function InboundScreen() {
                     style={({ pressed }) => [pressed && { opacity: 0.7 }]}
                   >
                     <View className="bg-surface border border-primary rounded-full px-3 py-2">
-                      <Text className="text-xs text-foreground">{part.name}</Text>
+                      <Text className="text-xs text-foreground">{part.partNumber}</Text>
                     </View>
                   </Pressable>
                 ))}
@@ -569,11 +598,46 @@ export default function InboundScreen() {
           )}
         </View>
 
+        {/* +部品追加ボタン */}
+        <Pressable
+          onPress={handleAddItem}
+          className="bg-success rounded-lg py-3 mb-4"
+          style={({ pressed }) => [pressed && { opacity: 0.8 }]}
+        >
+          <Text className="text-center text-white font-bold text-lg">+ 部品追加</Text>
+        </Pressable>
+
+        {/* 追加部品リスト */}
+        {inboundItems.length > 0 && (
+          <View className="bg-surface border border-border rounded-lg p-4 mb-4">
+            <Text className="text-sm font-semibold text-foreground mb-3">追加部品 ({inboundItems.length}件)</Text>
+            {inboundItems.map((item, index) => {
+              const part = parts.find(p => p.id === item.partId);
+              return (
+                <View key={index} className="flex-row justify-between items-center bg-background p-3 rounded-lg mb-2">
+                  <View className="flex-1">
+                    <Text className="text-sm font-semibold text-foreground">{part?.partNumber || item.partName}</Text>
+                    <Text className="text-xs text-muted">数量: {item.quantity}</Text>
+                  </View>
+                  <Pressable
+                    onPress={() => handleRemoveItem(index)}
+                    className="bg-error rounded-lg px-3 py-2"
+                    style={({ pressed }) => [pressed && { opacity: 0.8 }]}
+                  >
+                    <Text className="text-white font-semibold">削除</Text>
+                  </Pressable>
+                </View>
+              );
+            })}
+          </View>
+        )}
+
         {/* 保存ボタン */}
         <Pressable
           onPress={handleSave}
           className="bg-primary rounded-lg py-4 mb-4"
           style={({ pressed }) => [pressed && { opacity: 0.8 }]}
+          disabled={inboundItems.length === 0}
         >
           <Text className="text-center text-white font-bold text-lg">保存</Text>
         </Pressable>

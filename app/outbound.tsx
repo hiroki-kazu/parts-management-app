@@ -88,6 +88,8 @@ export default function OutboundScreen() {
     quantity: 1,
   });
 
+  const [outboundItems, setOutboundItems] = useState<OutboundForm[]>([]);
+
   const [parts, setParts] = useState<Part[]>([]);
   const [frequentParts, setFrequentParts] = useState<Part[]>([]);
   const [vehicleHistoryParts, setVehicleHistoryParts] = useState<Part[]>([]);
@@ -280,6 +282,34 @@ export default function OutboundScreen() {
     }));
   };
 
+  const handleAddItem = () => {
+    if (!form.partId) {
+      Alert.alert("エラー", "部品を選択してください");
+      return;
+    }
+    if (form.quantity <= 0) {
+      Alert.alert("エラー", "数量は0より大きい値を入力してください");
+      return;
+    }
+    
+    setOutboundItems([...outboundItems, { ...form }]);
+    setForm({
+      date: form.date,
+      voucherNumber: form.voucherNumber,
+      vehicleNumber: form.vehicleNumber,
+      customerName: form.customerName,
+      partId: "",
+      partName: "",
+      quantity: 1,
+    });
+    setQuantityInputText("1");
+    setPartSearchText("");
+  };
+
+  const handleRemoveItem = (index: number) => {
+    setOutboundItems(outboundItems.filter((_, i) => i !== index));
+  };
+
   const handleSave = async () => {
     try {
       if (!form.voucherNumber) {
@@ -294,27 +324,25 @@ export default function OutboundScreen() {
         Alert.alert("エラー", "顧客名を入力してください");
         return;
       }
-      if (!form.partId) {
-        Alert.alert("エラー", "部品を選択してください");
-        return;
-      }
-      if (form.quantity <= 0) {
-        Alert.alert("エラー", "数量は0より大きい値を入力してください");
+      if (outboundItems.length === 0) {
+        Alert.alert("エラー", "最低1つの部品を追加してください");
         return;
       }
 
-      await addOutboundRecord({
-        date: form.date,
-        voucherNumber: form.voucherNumber,
-        customerName: form.customerName,
-        vehicleNumber: form.vehicleNumber,
-        partId: form.partId,
-        partName: form.partName,
-        quantity: form.quantity,
-      });
+      for (const item of outboundItems) {
+        await addOutboundRecord({
+          date: item.date,
+          voucherNumber: item.voucherNumber,
+          customerName: item.customerName,
+          vehicleNumber: item.vehicleNumber,
+          partId: item.partId,
+          partName: item.partName,
+          quantity: item.quantity,
+        });
+      }
 
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("成功", "出庫入力が完了しました");
+      Alert.alert("成功", outboundItems.length + "件の出庫入力が完了しました");
 
       // フォームをリセット
       setForm({
@@ -327,6 +355,7 @@ export default function OutboundScreen() {
         quantity: 1,
       });
       setQuantityInputText("1");
+      setOutboundItems([]);
     } catch (error) {
       console.error("Error saving outbound record:", error);
       Alert.alert("エラー", "出庫入力に失敗しました");
@@ -520,7 +549,7 @@ export default function OutboundScreen() {
                     style={({ pressed }) => [pressed && { opacity: 0.7 }]}
                   >
                     <View className="bg-surface border border-primary rounded-full px-3 py-2">
-                      <Text className="text-xs text-foreground">{part.name}</Text>
+                      <Text className="text-xs text-foreground">{part.partNumber}</Text>
                     </View>
                   </Pressable>
                 ))}
@@ -594,11 +623,46 @@ export default function OutboundScreen() {
           )}
         </View>
 
+        {/* +部品追加ボタン */}
+        <Pressable
+          onPress={handleAddItem}
+          className="bg-success rounded-lg py-3 mb-4"
+          style={({ pressed }) => [pressed && { opacity: 0.8 }]}
+        >
+          <Text className="text-center text-white font-bold text-lg">+ 部品追加</Text>
+        </Pressable>
+
+        {/* 追加部品リスト */}
+        {outboundItems.length > 0 && (
+          <View className="bg-surface border border-border rounded-lg p-4 mb-4">
+            <Text className="text-sm font-semibold text-foreground mb-3">追加部品 ({outboundItems.length}件)</Text>
+            {outboundItems.map((item, index) => {
+              const part = parts.find(p => p.id === item.partId);
+              return (
+                <View key={index} className="flex-row justify-between items-center bg-background p-3 rounded-lg mb-2">
+                  <View className="flex-1">
+                    <Text className="text-sm font-semibold text-foreground">{part?.partNumber || item.partName}</Text>
+                    <Text className="text-xs text-muted">数量: {item.quantity}</Text>
+                  </View>
+                  <Pressable
+                    onPress={() => handleRemoveItem(index)}
+                    className="bg-error rounded-lg px-3 py-2"
+                    style={({ pressed }) => [pressed && { opacity: 0.8 }]}
+                  >
+                    <Text className="text-white font-semibold">削除</Text>
+                  </Pressable>
+                </View>
+              );
+            })}
+          </View>
+        )}
+
         {/* 保存ボタン */}
         <Pressable
           onPress={handleSave}
           className="bg-primary rounded-lg py-4 mb-4"
           style={({ pressed }) => [pressed && { opacity: 0.8 }]}
+          disabled={outboundItems.length === 0}
         >
           <Text className="text-center text-white font-bold text-lg">保存</Text>
         </Pressable>
