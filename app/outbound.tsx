@@ -537,8 +537,9 @@ export default function OutboundScreen() {
                     setIsEditFavoritesVisible(true);
                   }}
                   style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+                  className="px-4 py-2 bg-primary rounded-lg"
                 >
-                  <Text className="text-xs text-primary font-semibold">✏️ 編集</Text>
+                  <Text className="text-sm text-white font-semibold">✏️ 編集</Text>
                 </Pressable>
               </View>
               <View className="flex-row flex-wrap gap-2">

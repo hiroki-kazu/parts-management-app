@@ -1369,3 +1369,27 @@ export async function setTutorialShown(shown: boolean): Promise<void> {
     console.error("[setTutorialShown] Error:", error);
   }
 }
+
+
+/**
+ * アプリ起動時ポップアップ表示フラグ管理
+ */
+const HELP_POPUP_SHOWN_KEY = "helpPopupShown";
+
+export async function getHelpPopupShown(): Promise<boolean> {
+  try {
+    const shown = await AsyncStorage.getItem(HELP_POPUP_SHOWN_KEY);
+    return shown === "true";
+  } catch (error) {
+    console.error("[getHelpPopupShown] Error:", error);
+    return false;
+  }
+}
+
+export async function setHelpPopupShown(shown: boolean): Promise<void> {
+  try {
+    await AsyncStorage.setItem(HELP_POPUP_SHOWN_KEY, shown ? "true" : "false");
+  } catch (error) {
+    console.error("[setHelpPopupShown] Error:", error);
+  }
+}
