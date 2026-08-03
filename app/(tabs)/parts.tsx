@@ -241,6 +241,9 @@ export default function PartsScreen() {
         <View className="flex-1">
           <Text className="text-lg font-semibold text-foreground">{item.name}</Text>
           <Text className="text-sm text-muted">品番: {item.partNumber}</Text>
+          {item.supplier && (
+            <Text className="text-sm text-muted">仕入先: {item.supplier}</Text>
+          )}
         </View>
         <View className="flex-row gap-2">
           <Pressable
@@ -415,6 +418,18 @@ export default function PartsScreen() {
                       value={editingPartText.minStockText}
                       onChangeText={(text) => setEditingPartText({ ...editingPartText, minStockText: validateQuantityInput(text, editingPart.allowDecimal || false) })}
                       keyboardType={Platform.OS === "ios" ? "numbers-and-punctuation" : "decimal-pad"}
+                      className="bg-surface border border-border rounded-lg px-4 py-3 text-foreground"
+                      placeholderTextColor="#999"
+                    />
+                  </View>
+
+                  {/* 仕入先 */}
+                  <View className="mb-4">
+                    <Text className="text-sm font-semibold text-foreground mb-2">仕入先</Text>
+                    <TextInput
+                      placeholder="仕入先を入力（オプション）"
+                      value={editingPart.supplier || ""}
+                      onChangeText={(text) => setEditingPart({ ...editingPart, supplier: text })}
                       className="bg-surface border border-border rounded-lg px-4 py-3 text-foreground"
                       placeholderTextColor="#999"
                     />
