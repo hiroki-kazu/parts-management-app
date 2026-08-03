@@ -392,32 +392,7 @@ export default function InventoryScreen() {
         </View>
       )}
 
-      {/* アクションボタン */}
-      <View className="flex-row gap-2 mt-3">
-        <Pressable 
-          onPress={() => handleEditStock(item.part.id, item.part.currentStock)}
-          style={({ pressed }) => [pressed && { opacity: 0.7 }]}
-          className="flex-1 bg-primary rounded-lg py-2"
-        >
-          <Text className="text-white text-center font-semibold text-sm">在庫修正</Text>
-        </Pressable>
-        
-        <Pressable 
-          onPress={() => handleEditMinStock(item.part.id, item.part.minStock)}
-          style={({ pressed }) => [pressed && { opacity: 0.7 }]}
-          className="flex-1 bg-warning rounded-lg py-2"
-        >
-          <Text className="text-white text-center font-semibold text-sm">最低在庫修正</Text>
-        </Pressable>
-        
-        <Pressable 
-          onPress={() => handleDeletePart(item.part.id, item.part.name)}
-          style={({ pressed }) => [pressed && { opacity: 0.7 }]}
-          className="flex-1 bg-error rounded-lg py-2"
-        >
-          <Text className="text-white text-center font-semibold text-sm">削除</Text>
-        </Pressable>
-      </View>
+
     </View>
   );
 
@@ -433,25 +408,10 @@ export default function InventoryScreen() {
             </Pressable>
             <Text className="text-2xl font-bold text-foreground">在庫一覧</Text>
           </View>
-          <View className="flex-row gap-2">
-            <Pressable 
-              onPress={() => setModalType("add-part")}
-              style={({ pressed }) => [pressed && { opacity: 0.7 }]}
-              className="bg-success rounded-full w-10 h-10 items-center justify-center"
-            >
-              <Text className="text-white text-xl font-bold">+</Text>
-            </Pressable>
-          </View>
+          <View className="flex-row gap-2" />
         </View>
 
-        {/* 検索フィールド */}
-        <TextInput
-          placeholder="部品名または品番で検索"
-          value={searchText}
-          onChangeText={setSearchText}
-          className="bg-surface border border-border rounded-lg px-4 py-2 mb-4 text-foreground"
-          placeholderTextColor="#999"
-        />
+
 
         {/* 統計情報 */}
         <View className="flex-row gap-2 mb-4">
