@@ -982,9 +982,19 @@ export async function generateInboundRecordsCSVTemplate(): Promise<string> {
  */
 export async function importOutboundRecordsFromCSV(csvContent: string): Promise<{ success: number; failed: number }> {
   try {
-    const lines = csvContent.trim().split("\n");
+    // BOMを削除
+    let cleanContent = csvContent;
+    if (cleanContent.charCodeAt(0) === 0xFEFF) {
+      cleanContent = cleanContent.slice(1);
+    }
     
-    // ヘッダーをスキップ
+    const lines = cleanContent.trim().split("\n");
+    
+    // ヘッダーをスキップ（最初の行がヘッダー）
+    if (lines.length < 2) {
+      return { success: 0, failed: 0 };
+    }
+    
     const dataLines = lines.slice(1);
     
     let successCount = 0;
@@ -994,9 +1004,11 @@ export async function importOutboundRecordsFromCSV(csvContent: string): Promise<
       if (!line.trim()) continue;
       
       try {
-        const columns = line.split(",").map(col => col.trim());
+        // CSVのカラムを適切に分割（クォートに対応）
+        const columns = line.split(",").map(col => col.trim().replace(/^"|"$/g, ""));
         
         if (columns.length < 6) {
+          console.warn("Invalid column count:", columns.length, "line:", line);
           failureCount++;
           continue;
         }
@@ -1005,6 +1017,7 @@ export async function importOutboundRecordsFromCSV(csvContent: string): Promise<
         const quantity = parseFloat(quantityStr);
         
         if (!date || !voucherNumber || !customerName || !vehicleNumber || !partName || isNaN(quantity)) {
+          console.warn("Invalid data:", { date, voucherNumber, customerName, vehicleNumber, partName, quantity });
           failureCount++;
           continue;
         }
@@ -1014,6 +1027,7 @@ export async function importOutboundRecordsFromCSV(csvContent: string): Promise<
         const part = parts.find(p => p.name === partName);
         
         if (!part) {
+          console.warn("Part not found:", partName);
           failureCount++;
           continue;
         }
@@ -1040,7 +1054,8 @@ export async function importOutboundRecordsFromCSV(csvContent: string): Promise<
         await updatePart(part.id, updatedPart);
         
         successCount++;
-      } catch {
+      } catch (error) {
+        console.error("Error processing line:", line, error);
         failureCount++;
       }
     }
@@ -1057,9 +1072,19 @@ export async function importOutboundRecordsFromCSV(csvContent: string): Promise<
  */
 export async function importInboundRecordsFromCSV(csvContent: string): Promise<{ success: number; failed: number }> {
   try {
-    const lines = csvContent.trim().split("\n");
+    // BOMを削除
+    let cleanContent = csvContent;
+    if (cleanContent.charCodeAt(0) === 0xFEFF) {
+      cleanContent = cleanContent.slice(1);
+    }
     
-    // ヘッダーをスキップ
+    const lines = cleanContent.trim().split("\n");
+    
+    // ヘッダーをスキップ（最初の行がヘッダー）
+    if (lines.length < 2) {
+      return { success: 0, failed: 0 };
+    }
+    
     const dataLines = lines.slice(1);
     
     let successCount = 0;
@@ -1069,9 +1094,11 @@ export async function importInboundRecordsFromCSV(csvContent: string): Promise<{
       if (!line.trim()) continue;
       
       try {
-        const columns = line.split(",").map(col => col.trim());
+        // CSVのカラムを適切に分割（クォートに対応）
+        const columns = line.split(",").map(col => col.trim().replace(/^"|"$/g, ""));
         
         if (columns.length < 5) {
+          console.warn("Invalid column count:", columns.length, "line:", line);
           failureCount++;
           continue;
         }
@@ -1080,6 +1107,7 @@ export async function importInboundRecordsFromCSV(csvContent: string): Promise<{
         const quantity = parseFloat(quantityStr);
         
         if (!date || !voucherNumber || !supplier || !partName || isNaN(quantity)) {
+          console.warn("Invalid data:", { date, voucherNumber, supplier, partName, quantity });
           failureCount++;
           continue;
         }
@@ -1089,6 +1117,7 @@ export async function importInboundRecordsFromCSV(csvContent: string): Promise<{
         const part = parts.find(p => p.name === partName);
         
         if (!part) {
+          console.warn("Part not found:", partName);
           failureCount++;
           continue;
         }
@@ -1114,7 +1143,8 @@ export async function importInboundRecordsFromCSV(csvContent: string): Promise<{
         await updatePart(part.id, updatedPart);
         
         successCount++;
-      } catch {
+      } catch (error) {
+        console.error("Error processing line:", line, error);
         failureCount++;
       }
     }
