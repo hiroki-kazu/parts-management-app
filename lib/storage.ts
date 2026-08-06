@@ -1013,7 +1013,15 @@ export async function importOutboundRecordsFromCSV(csvContent: string): Promise<
           continue;
         }
         
-        const [date, voucherNumber, customerName, vehicleNumber, partName, quantityStr] = columns;
+        let [date, voucherNumber, customerName, vehicleNumber, partName, quantityStr] = columns;
+        // 空白をトリム
+        date = date.trim();
+        voucherNumber = voucherNumber.trim();
+        customerName = customerName.trim();
+        vehicleNumber = vehicleNumber.trim();
+        partName = partName.trim();
+        quantityStr = quantityStr.trim();
+        
         const quantity = parseFloat(quantityStr);
         
         if (!date || !voucherNumber || !customerName || !vehicleNumber || !partName || isNaN(quantity)) {
@@ -1024,10 +1032,10 @@ export async function importOutboundRecordsFromCSV(csvContent: string): Promise<
         
         // 部品IDを取得（部品名から検索）
         const parts = await getParts();
-        const part = parts.find(p => p.name === partName);
+        const part = parts.find(p => p.name.trim() === partName);
         
         if (!part) {
-          console.warn("Part not found:", partName);
+          console.warn("Part not found:", partName, "Available parts:", parts.map(p => p.name));
           failureCount++;
           continue;
         }
@@ -1103,7 +1111,14 @@ export async function importInboundRecordsFromCSV(csvContent: string): Promise<{
           continue;
         }
         
-        const [date, voucherNumber, supplier, partName, quantityStr] = columns;
+        let [date, voucherNumber, supplier, partName, quantityStr] = columns;
+        // 空白をトリム
+        date = date.trim();
+        voucherNumber = voucherNumber.trim();
+        supplier = supplier.trim();
+        partName = partName.trim();
+        quantityStr = quantityStr.trim();
+        
         const quantity = parseFloat(quantityStr);
         
         if (!date || !voucherNumber || !supplier || !partName || isNaN(quantity)) {
@@ -1114,10 +1129,10 @@ export async function importInboundRecordsFromCSV(csvContent: string): Promise<{
         
         // 部品IDを取得（部品名から検索）
         const parts = await getParts();
-        const part = parts.find(p => p.name === partName);
+        const part = parts.find(p => p.name.trim() === partName);
         
         if (!part) {
-          console.warn("Part not found:", partName);
+          console.warn("Part not found:", partName, "Available parts:", parts.map(p => p.name));
           failureCount++;
           continue;
         }
