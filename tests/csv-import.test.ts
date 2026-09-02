@@ -17,6 +17,8 @@ vi.mock("@react-native-async-storage/async-storage", () => ({
 
 import { decodeCSVBase64, parseCSV } from "../lib/csv";
 import {
+  generateInboundRecordsCSVTemplate,
+  generateOutboundRecordsCSVTemplate,
   importInboundRecordsFromCSV,
   importOutboundRecordsFromCSV,
 } from "../lib/storage";
@@ -73,10 +75,55 @@ describe("CSV utilities", () => {
 });
 
 describe("history CSV imports", () => {
+  it("generates history templates with a part number column", async () => {
+    storage.set(
+      "outbound_records",
+      JSON.stringify([
+        {
+          id: "out-1",
+          date: "2026-09-01",
+          voucherNumber: "OUT-001",
+          customerName: "山田自動車",
+          vehicleNumber: "1234",
+          partId: "part-1",
+          partName: "エンジンオイル",
+          quantity: 2,
+          createdAt: "2026-09-01T00:00:00.000Z",
+        },
+      ]),
+    );
+    storage.set(
+      "inbound_records",
+      JSON.stringify([
+        {
+          id: "in-1",
+          date: "2026-09-01",
+          voucherNumber: "IN-001",
+          supplier: "部品商会",
+          partId: "part-1",
+          partName: "エンジンオイル",
+          quantity: 2,
+          createdAt: "2026-09-01T00:00:00.000Z",
+        },
+      ]),
+    );
+
+    const outboundTemplate = await generateOutboundRecordsCSVTemplate();
+    const inboundTemplate = await generateInboundRecordsCSVTemplate();
+
+    expect(outboundTemplate.split("\n")[0]).toBe(
+      "日付,伝票番号,顧客名,車両ナンバー,部品名,品番,数量",
+    );
+    expect(outboundTemplate).toContain("エンジンオイル,EO-001,2");
+    expect(inboundTemplate.split("\n")[0]).toBe(
+      "日付,伝票番号,仕入先,部品名,品番,数量",
+    );
+    expect(inboundTemplate).toContain("エンジンオイル,EO-001,2");
+  });
   it("imports outbound rows by part number and preserves quoted fields", async () => {
     const result = await importOutboundRecordsFromCSV(
-      "日付,伝票番号,顧客名,ナンバー,品番,数量\r\n" +
-        "2026/09/01,OUT-001,\"山田自動車,本店\",1234,EO-001,2\r\n",
+      "日付,伝票番号,顧客名,ナンバー,部品名,品番,数量\r\n" +
+        "2026/09/01,OUT-001,\"山田自動車,本店\",1234,名称が違っても,EO-001,2\r\n",
     );
 
     expect(result.success).toBe(1);
@@ -114,5 +161,16 @@ describe("history CSV imports", () => {
       quantity: 2,
     });
     expect(parts[0].currentStock).toBe(12);
+  });
+
+  it("prefers the part number in the new inbound format", async () => {
+    const result = await importInboundRecordsFromCSV(
+      "日付,伝票番号,仕入先,部品名,品番,数量\n" +
+        "2026-09-01,IN-003,部品商会,名称が違っても,EO-001,3\n",
+    );
+
+    expect(result).toMatchObject({ success: 1, failed: 0 });
+    const records = JSON.parse(storage.get("inbound_records") ?? "[]");
+    expect(records[0]).toMatchObject({ partId: "part-1", quantity: 3 });
   });
 });

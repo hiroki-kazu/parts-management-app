@@ -11,6 +11,7 @@ import {
   MonthlyInventorySnapshot,
 } from "./types";
 import {
+  escapeCSV,
   findCSVColumn,
   normalizeCSVValue,
   parseCSV,
@@ -921,23 +922,33 @@ export async function generatePartsCSVTemplate(): Promise<string> {
  */
 export async function generateOutboundRecordsCSVTemplate(): Promise<string> {
   try {
-    // ヘッダー行
-    const header = "日付,伝票番号,顧客名,車両ナンバー,部品名,数量\n";
+    // 品番を必須列にした新形式。旧形式（6列）もインポート側で引き続き受け付けます。
+    const header = "日付,伝票番号,顧客名,車両ナンバー,部品名,品番,数量\n";
     
     // 最近の出庫履歴を取得（最大5件）
     const records = await getOutboundRecords();
+    const parts = await getParts();
     const recentRecords = records.slice(0, 5);
     
     // 既存データ行
     const dataRows = recentRecords.map(record => {
-      return `${record.date},${record.voucherNumber},${record.customerName},${record.vehicleNumber},${record.partName},${record.quantity}`;
+      const partNumber = parts.find((part) => part.id === record.partId)?.partNumber ?? "";
+      return [
+        record.date,
+        record.voucherNumber,
+        record.customerName,
+        record.vehicleNumber,
+        record.partName,
+        partNumber,
+        record.quantity,
+      ].map(escapeCSV).join(",");
     });
     
     // サンプル行（参考用）
     const exampleRows = [
-      "2026-07-24,DEN-001,山田自動車,1234,エンジンオイル,2",
-      "2026-07-24,DEN-002,太郎自動車,5678,エアフィルター,1",
-      "2026-07-23,DEN-003,花子自動車,9012,バッテリー,1",
+      "2026-07-24,DEN-001,山田自動車,1234,エンジンオイル,EO-001,2",
+      "2026-07-24,DEN-002,太郎自動車,5678,エアフィルター,AF-001,1",
+      "2026-07-23,DEN-003,花子自動車,9012,バッテリー,BAT-001,1",
     ];
     
     // 既存データがある場合はそれを使用、ない場合はサンプルを使用
@@ -954,23 +965,32 @@ export async function generateOutboundRecordsCSVTemplate(): Promise<string> {
  */
 export async function generateInboundRecordsCSVTemplate(): Promise<string> {
   try {
-    // ヘッダー行
-    const header = "日付,伝票番号,仕入先,部品名,数量\n";
+    // 品番を必須列にした新形式。旧形式（5列）もインポート側で引き続き受け付けます。
+    const header = "日付,伝票番号,仕入先,部品名,品番,数量\n";
     
     // 最近の入庫履歴を取得（最大5件）
     const records = await getInboundRecords();
+    const parts = await getParts();
     const recentRecords = records.slice(0, 5);
     
     // 既存データ行
     const dataRows = recentRecords.map(record => {
-      return `${record.date},${record.voucherNumber},${record.supplier},${record.partName},${record.quantity}`;
+      const partNumber = parts.find((part) => part.id === record.partId)?.partNumber ?? "";
+      return [
+        record.date,
+        record.voucherNumber,
+        record.supplier,
+        record.partName,
+        partNumber,
+        record.quantity,
+      ].map(escapeCSV).join(",");
     });
     
     // サンプル行（参考用）
     const exampleRows = [
-      "2026-07-24,NUU-001,日本知貫気象店,エンジンオイル,10",
-      "2026-07-24,NUU-002,トヨタ部品店,エアフィルター,5",
-      "2026-07-23,NUU-003,パナソニック店,バッテリー,3",
+      "2026-07-24,NUU-001,日本知貫気象店,エンジンオイル,EO-001,10",
+      "2026-07-24,NUU-002,トヨタ部品店,エアフィルター,AF-001,5",
+      "2026-07-23,NUU-003,パナソニック店,バッテリー,BAT-001,3",
     ];
     
     // 既存データがある場合はそれを使用、ない場合はサンプルを使用
@@ -1041,7 +1061,8 @@ export async function importOutboundRecordsFromCSV(
       voucherNumber: ["伝票番号", "voucherNumber", "voucher"],
       customerName: ["顧客名", "customerName", "顧客"],
       vehicleNumber: ["車両ナンバー", "ナンバー", "車両番号", "vehicleNumber", "車番"],
-      part: ["部品名", "部品番号", "品番", "partName", "partNumber"],
+      partName: ["部品名", "partName", "部品名/品番"],
+      partNumber: ["部品番号", "品番", "partNumber"],
       quantity: ["数量", "個数", "quantity", "qty"],
     };
     const headerIndexes = {
@@ -1049,13 +1070,14 @@ export async function importOutboundRecordsFromCSV(
       voucherNumber: findCSVColumn(headers, headerAliases.voucherNumber),
       customerName: findCSVColumn(headers, headerAliases.customerName),
       vehicleNumber: findCSVColumn(headers, headerAliases.vehicleNumber),
-      part: findCSVColumn(headers, headerAliases.part),
+      partName: findCSVColumn(headers, headerAliases.partName),
+      partNumber: findCSVColumn(headers, headerAliases.partNumber),
       quantity: findCSVColumn(headers, headerAliases.quantity),
     };
     const hasHeader = Object.values(headerIndexes).some((index) => index >= 0);
     const indexes = hasHeader
       ? headerIndexes
-      : { date: 0, voucherNumber: 1, customerName: 2, vehicleNumber: 3, part: 4, quantity: 5 };
+      : { date: 0, voucherNumber: 1, customerName: 2, vehicleNumber: 3, partName: 4, partNumber: -1, quantity: 5 };
     const dataRows = hasHeader ? rows.slice(1) : rows;
     const parts = await getParts();
     const records = await getOutboundRecords();
@@ -1070,11 +1092,14 @@ export async function importOutboundRecordsFromCSV(
       const voucherNumber = getValue(indexes.voucherNumber);
       const customerName = getValue(indexes.customerName);
       const vehicleNumber = getValue(indexes.vehicleNumber);
-      const partValue = getValue(indexes.part);
+      const partNameValue = getValue(indexes.partName);
+      const partNumberValue = getValue(indexes.partNumber);
+      // 新形式では品番を優先し、旧形式では部品名を使用します。
+      const partValue = partNumberValue || partNameValue;
       const quantityText = normalizeImportedNumber(getValue(indexes.quantity));
       const quantity = Number(quantityText);
 
-      if (!date || !voucherNumber || !customerName || !vehicleNumber || !partValue || !Number.isFinite(quantity)) {
+      if (!date || !voucherNumber || !customerName || !vehicleNumber || !partValue || !quantityText || !Number.isFinite(quantity)) {
         const reason = `${lineNumber}行目: 必須項目（日付・伝票番号・顧客名・車両ナンバー・部品名/品番・数量）が不足しています`;
         errors.push(reason);
         console.warn("Outbound CSV invalid row:", reason, row);
@@ -1134,20 +1159,22 @@ export async function importInboundRecordsFromCSV(
       date: ["日付", "date"],
       voucherNumber: ["伝票番号", "voucherNumber", "voucher"],
       supplier: ["仕入先", "仕入れ先", "supplier", "vendor"],
-      part: ["部品名", "部品番号", "品番", "partName", "partNumber"],
+      partName: ["部品名", "partName", "部品名/品番"],
+      partNumber: ["部品番号", "品番", "partNumber"],
       quantity: ["数量", "個数", "quantity", "qty"],
     };
     const headerIndexes = {
       date: findCSVColumn(headers, headerAliases.date),
       voucherNumber: findCSVColumn(headers, headerAliases.voucherNumber),
       supplier: findCSVColumn(headers, headerAliases.supplier),
-      part: findCSVColumn(headers, headerAliases.part),
+      partName: findCSVColumn(headers, headerAliases.partName),
+      partNumber: findCSVColumn(headers, headerAliases.partNumber),
       quantity: findCSVColumn(headers, headerAliases.quantity),
     };
     const hasHeader = Object.values(headerIndexes).some((index) => index >= 0);
     const indexes = hasHeader
       ? headerIndexes
-      : { date: 0, voucherNumber: 1, supplier: 2, part: 3, quantity: 4 };
+      : { date: 0, voucherNumber: 1, supplier: 2, partName: 3, partNumber: -1, quantity: 4 };
     const dataRows = hasHeader ? rows.slice(1) : rows;
     const parts = await getParts();
     const records = await getInboundRecords();
@@ -1161,7 +1188,10 @@ export async function importInboundRecordsFromCSV(
       const date = normalizeImportedDate(getValue(indexes.date));
       const voucherNumber = getValue(indexes.voucherNumber);
       const supplier = getValue(indexes.supplier);
-      const partValue = getValue(indexes.part);
+      const partNameValue = getValue(indexes.partName);
+      const partNumberValue = getValue(indexes.partNumber);
+      // 新形式では品番を優先し、旧形式では部品名を使用します。
+      const partValue = partNumberValue || partNameValue;
       const quantityText = normalizeImportedNumber(getValue(indexes.quantity));
       const quantity = Number(quantityText);
 

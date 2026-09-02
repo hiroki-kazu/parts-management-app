@@ -181,3 +181,11 @@ export function normalizeCSVValue(value: string | undefined): string {
     .replace(/\u3000/g, " ")
     .trim();
 }
+
+/**
+ * CSV出力時にカンマ・改行・ダブルクォートを安全にエスケープします。
+ */
+export function escapeCSV(value: string | number | undefined | null): string {
+  const text = String(value ?? "");
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
