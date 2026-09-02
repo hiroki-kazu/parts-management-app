@@ -35,9 +35,39 @@ import * as MailComposer from "expo-mail-composer";
 
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as DocumentPicker from "expo-document-picker";
+import { decodeCSVBase64, normalizeCSVText } from "@/lib/csv";
 
+async function readCSVFile(uri: string): Promise<{ text: string; encoding: string }> {
+  try {
+    // AndroidのExcelはShift-JISで保存することがあるため、まずバイト列として読み込みます。
+    const base64 = await FileSystem.readAsStringAsync(uri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    return decodeCSVBase64(base64);
+  } catch (error) {
+    // Webや一部のファイルプロバイダーでBase64読み込みが使えない場合のフォールバック。
+    console.warn("CSV Base64 read failed, falling back to UTF-8:", error);
+    const text = await FileSystem.readAsStringAsync(uri, {
+      encoding: FileSystem.EncodingType.UTF8,
+    });
+    return { text: normalizeCSVText(text), encoding: "UTF8" };
+  }
+}
 
-
+function formatHistoryImportMessage(
+  result: { success: number; failed: number; errors: string[] },
+  encoding: string,
+): string {
+  const encodingLabel = encoding === "SJIS" ? "Shift-JIS" : encoding;
+  let message = `文字コード: ${encodingLabel}\n成功: ${result.success}件\n失敗: ${result.failed}件`;
+  if (result.errors.length > 0) {
+    message += `\n\n確認してください:\n${result.errors.slice(0, 3).join("\n")}`;
+    if (result.errors.length > 3) {
+      message += `\n他${result.errors.length - 3}件...`;
+    }
+  }
+  return message;
+}
 
 export default function DataProcessingScreen() {
   const router = useRouter();
@@ -127,14 +157,9 @@ export default function DataProcessingScreen() {
         return;
       }
       
-      // ファイルを読み込み
+      // ファイルを文字コード判定付きで読み込み
       const fileUri = result.assets[0].uri;
-      const csvContent = await FileSystem.readAsStringAsync(fileUri, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
-      
-      // BOMを削除
-      const cleanedContent = csvContent.replace(/^\uFEFF/, '');
+      const { text: cleanedContent } = await readCSVFile(fileUri);
       
       // CSVをインポート
       const importResult = await importPartsFromCSV(cleanedContent);
@@ -300,10 +325,10 @@ export default function DataProcessingScreen() {
       if (result.canceled) return;
 
       const fileUri = result.assets[0].uri;
-      const fileContent = await FileSystem.readAsStringAsync(fileUri);
+      const { text: fileContent, encoding } = await readCSVFile(fileUri);
       
-      const { success, failed } = await importOutboundRecordsFromCSV(fileContent);
-      Alert.alert('インポート完了', `成功: ${success}件\n失敗: ${failed}件`);
+      const importResult = await importOutboundRecordsFromCSV(fileContent);
+      Alert.alert('出庫履歴インポート完了', formatHistoryImportMessage(importResult, encoding));
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       Alert.alert('エラー', 'インポートに失敗しました');
@@ -323,10 +348,10 @@ export default function DataProcessingScreen() {
       if (result.canceled) return;
 
       const fileUri = result.assets[0].uri;
-      const fileContent = await FileSystem.readAsStringAsync(fileUri);
+      const { text: fileContent, encoding } = await readCSVFile(fileUri);
       
-      const { success, failed } = await importInboundRecordsFromCSV(fileContent);
-      Alert.alert('インポート完了', `成功: ${success}件\n失敗: ${failed}件`);
+      const importResult = await importInboundRecordsFromCSV(fileContent);
+      Alert.alert('入庫履歴インポート完了', formatHistoryImportMessage(importResult, encoding));
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       Alert.alert('エラー', 'インポートに失敗しました');
@@ -493,6 +518,7 @@ export default function DataProcessingScreen() {
         {/* セクション1.5: 履歴テンプレート */}
         <View className="mb-6">
           <Text className="text-sm font-semibold text-foreground mb-2">1.5 履歴テンプレート</Text>
+          <Text className="text-xs text-muted mb-3">UTF-8・Shift-JIS、カンマ・タブ区切りに対応。部品名または品番で照合します。</Text>
           
           {/* 出庫履歴テンプレート */}
           <View className="bg-surface rounded-lg p-4 mb-3 border border-border">

@@ -10,6 +10,11 @@ import {
   Customer,
   MonthlyInventorySnapshot,
 } from "./types";
+import {
+  findCSVColumn,
+  normalizeCSVValue,
+  parseCSV,
+} from "./csv";
 
 const STORAGE_KEYS = {
   PARTS: "parts",
@@ -978,97 +983,135 @@ export async function generateInboundRecordsCSVTemplate(): Promise<string> {
 }
 
 /**
- * 出庫履歴CSVインポート
+ * 履歴CSVインポートの結果。
+ * errorsには行番号付きの原因を格納し、利用者がCSVを修正できるようにします。
  */
-export async function importOutboundRecordsFromCSV(csvContent: string): Promise<{ success: number; failed: number }> {
+export interface HistoryImportResult {
+  success: number;
+  failed: number;
+  errors: string[];
+}
+
+function normalizeImportedNumber(value: string): string {
+  return normalizeCSVValue(value)
+    .replace(/[０-９]/g, (character) =>
+      String.fromCharCode(character.charCodeAt(0) - "０".charCodeAt(0) + "0".charCodeAt(0)),
+    )
+    .replace(/[，,]/g, "");
+}
+
+function normalizeImportedDate(value: string): string {
+  const normalized = normalizeCSVValue(value).replace(/[／/.]/g, "-");
+  const match = normalized.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (!match) return normalized;
+  return `${match[1]}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}`;
+}
+
+function findPartByImportedValue(parts: Part[], value: string): Part | undefined {
+  const normalizedValue = normalizeCSVValue(value);
+  return parts.find(
+    (part) =>
+      normalizeCSVValue(part.name) === normalizedValue ||
+      normalizeCSVValue(part.partNumber) === normalizedValue,
+  );
+}
+
+function buildHistoryImportResult(
+  success: number,
+  failed: number,
+  errors: string[],
+): HistoryImportResult {
+  return { success, failed, errors };
+}
+
+/**
+ * 出庫履歴CSVインポート。
+ * UTF-8/Shift-JISのデコードは画面側で行い、ここではヘッダー表記・引用符・品番を許容します。
+ */
+export async function importOutboundRecordsFromCSV(
+  csvContent: string,
+): Promise<HistoryImportResult> {
   try {
-    // BOMを削除
-    let cleanContent = csvContent;
-    if (cleanContent.charCodeAt(0) === 0xFEFF) {
-      cleanContent = cleanContent.slice(1);
-    }
-    
-    const lines = cleanContent.trim().split("\n");
-    
-    // ヘッダーをスキップ（最初の行がヘッダー）
-    if (lines.length < 2) {
-      return { success: 0, failed: 0 };
-    }
-    
-    const dataLines = lines.slice(1);
-    
+    const rows = parseCSV(csvContent);
+    if (rows.length === 0) return buildHistoryImportResult(0, 0, []);
+
+    const headers = rows[0];
+    const headerAliases = {
+      date: ["日付", "date"],
+      voucherNumber: ["伝票番号", "voucherNumber", "voucher"],
+      customerName: ["顧客名", "customerName", "顧客"],
+      vehicleNumber: ["車両ナンバー", "ナンバー", "車両番号", "vehicleNumber", "車番"],
+      part: ["部品名", "部品番号", "品番", "partName", "partNumber"],
+      quantity: ["数量", "個数", "quantity", "qty"],
+    };
+    const headerIndexes = {
+      date: findCSVColumn(headers, headerAliases.date),
+      voucherNumber: findCSVColumn(headers, headerAliases.voucherNumber),
+      customerName: findCSVColumn(headers, headerAliases.customerName),
+      vehicleNumber: findCSVColumn(headers, headerAliases.vehicleNumber),
+      part: findCSVColumn(headers, headerAliases.part),
+      quantity: findCSVColumn(headers, headerAliases.quantity),
+    };
+    const hasHeader = Object.values(headerIndexes).some((index) => index >= 0);
+    const indexes = hasHeader
+      ? headerIndexes
+      : { date: 0, voucherNumber: 1, customerName: 2, vehicleNumber: 3, part: 4, quantity: 5 };
+    const dataRows = hasHeader ? rows.slice(1) : rows;
+    const parts = await getParts();
+    const records = await getOutboundRecords();
+    const errors: string[] = [];
     let successCount = 0;
     let failureCount = 0;
-    
-    for (const line of dataLines) {
-      if (!line.trim()) continue;
-      
-      try {
-        // CSVのカラムを適切に分割（クォートに対応）
-        const columns = line.split(",").map(col => col.trim().replace(/^"|"$/g, ""));
-        
-        if (columns.length < 6) {
-          console.warn("Invalid column count:", columns.length, "line:", line);
-          failureCount++;
-          continue;
-        }
-        
-        let [date, voucherNumber, customerName, vehicleNumber, partName, quantityStr] = columns;
-        // 空白をトリム
-        date = date.trim();
-        voucherNumber = voucherNumber.trim();
-        customerName = customerName.trim();
-        vehicleNumber = vehicleNumber.trim();
-        partName = partName.trim();
-        quantityStr = quantityStr.trim();
-        
-        const quantity = parseFloat(quantityStr);
-        
-        if (!date || !voucherNumber || !customerName || !vehicleNumber || !partName || isNaN(quantity)) {
-          console.warn("Invalid data:", { date, voucherNumber, customerName, vehicleNumber, partName, quantity });
-          failureCount++;
-          continue;
-        }
-        
-        // 部品IDを取得（部品名から検索）
-        const parts = await getParts();
-        const part = parts.find(p => p.name.trim() === partName);
-        
-        if (!part) {
-          console.warn("Part not found:", partName, "Available parts:", parts.map(p => p.name));
-          failureCount++;
-          continue;
-        }
-        
-        // 出庫履歴を追加
-        const record: OutboundRecord = {
-          id: generateId(),
-          date,
-          voucherNumber,
-          customerName,
-          vehicleNumber,
-          partId: part.id,
-          partName,
-          quantity,
-          createdAt: new Date().toISOString(),
-        };
-        
-        const records = await getOutboundRecords();
-        records.push(record);
-        await AsyncStorage.setItem(STORAGE_KEYS.OUTBOUND_RECORDS, JSON.stringify(records));
-        
-        // 在庫数を減らす
-        const updatedPart = { ...part, currentStock: part.currentStock - quantity };
-        await updatePart(part.id, updatedPart);
-        
-        successCount++;
-      } catch (error) {
-        console.error("Error processing line:", line, error);
-        failureCount++;
+
+    dataRows.forEach((row, rowIndex) => {
+      const lineNumber = hasHeader ? rowIndex + 2 : rowIndex + 1;
+      const getValue = (index: number) => normalizeCSVValue(row[index]);
+      const date = normalizeImportedDate(getValue(indexes.date));
+      const voucherNumber = getValue(indexes.voucherNumber);
+      const customerName = getValue(indexes.customerName);
+      const vehicleNumber = getValue(indexes.vehicleNumber);
+      const partValue = getValue(indexes.part);
+      const quantityText = normalizeImportedNumber(getValue(indexes.quantity));
+      const quantity = Number(quantityText);
+
+      if (!date || !voucherNumber || !customerName || !vehicleNumber || !partValue || !Number.isFinite(quantity)) {
+        const reason = `${lineNumber}行目: 必須項目（日付・伝票番号・顧客名・車両ナンバー・部品名/品番・数量）が不足しています`;
+        errors.push(reason);
+        console.warn("Outbound CSV invalid row:", reason, row);
+        failureCount += 1;
+        return;
       }
+
+      const part = findPartByImportedValue(parts, partValue);
+      if (!part) {
+        const reason = `${lineNumber}行目: 部品名または品番「${partValue}」が部品マスタにありません`;
+        errors.push(reason);
+        console.warn("Outbound CSV part not found:", reason);
+        failureCount += 1;
+        return;
+      }
+
+      records.push({
+        id: generateId(),
+        date,
+        voucherNumber,
+        customerName,
+        vehicleNumber,
+        partId: part.id,
+        partName: part.name,
+        quantity,
+        createdAt: new Date().toISOString(),
+      });
+      part.currentStock -= quantity;
+      part.updatedAt = new Date().toISOString();
+      successCount += 1;
+    });
+
+    if (successCount > 0) {
+      await AsyncStorage.setItem(STORAGE_KEYS.OUTBOUND_RECORDS, JSON.stringify(records));
+      await AsyncStorage.setItem(STORAGE_KEYS.PARTS, JSON.stringify(parts));
     }
-    
-    return { success: successCount, failed: failureCount };
+    return buildHistoryImportResult(successCount, failureCount, errors);
   } catch (error) {
     console.error("Error importing outbound records from CSV:", error);
     throw error;
@@ -1076,95 +1119,89 @@ export async function importOutboundRecordsFromCSV(csvContent: string): Promise<
 }
 
 /**
- * 入庫履歴CSVインポート
+ * 入庫履歴CSVインポート。
+ * UTF-8/Shift-JISのデコードは画面側で行い、ヘッダー表記・引用符・品番を許容します。
  */
-export async function importInboundRecordsFromCSV(csvContent: string): Promise<{ success: number; failed: number }> {
+export async function importInboundRecordsFromCSV(
+  csvContent: string,
+): Promise<HistoryImportResult> {
   try {
-    // BOMを削除
-    let cleanContent = csvContent;
-    if (cleanContent.charCodeAt(0) === 0xFEFF) {
-      cleanContent = cleanContent.slice(1);
-    }
-    
-    const lines = cleanContent.trim().split("\n");
-    
-    // ヘッダーをスキップ（最初の行がヘッダー）
-    if (lines.length < 2) {
-      return { success: 0, failed: 0 };
-    }
-    
-    const dataLines = lines.slice(1);
-    
+    const rows = parseCSV(csvContent);
+    if (rows.length === 0) return buildHistoryImportResult(0, 0, []);
+
+    const headers = rows[0];
+    const headerAliases = {
+      date: ["日付", "date"],
+      voucherNumber: ["伝票番号", "voucherNumber", "voucher"],
+      supplier: ["仕入先", "仕入れ先", "supplier", "vendor"],
+      part: ["部品名", "部品番号", "品番", "partName", "partNumber"],
+      quantity: ["数量", "個数", "quantity", "qty"],
+    };
+    const headerIndexes = {
+      date: findCSVColumn(headers, headerAliases.date),
+      voucherNumber: findCSVColumn(headers, headerAliases.voucherNumber),
+      supplier: findCSVColumn(headers, headerAliases.supplier),
+      part: findCSVColumn(headers, headerAliases.part),
+      quantity: findCSVColumn(headers, headerAliases.quantity),
+    };
+    const hasHeader = Object.values(headerIndexes).some((index) => index >= 0);
+    const indexes = hasHeader
+      ? headerIndexes
+      : { date: 0, voucherNumber: 1, supplier: 2, part: 3, quantity: 4 };
+    const dataRows = hasHeader ? rows.slice(1) : rows;
+    const parts = await getParts();
+    const records = await getInboundRecords();
+    const errors: string[] = [];
     let successCount = 0;
     let failureCount = 0;
-    
-    for (const line of dataLines) {
-      if (!line.trim()) continue;
-      
-      try {
-        // CSVのカラムを適切に分割（クォートに対応）
-        const columns = line.split(",").map(col => col.trim().replace(/^"|"$/g, ""));
-        
-        if (columns.length < 5) {
-          console.warn("Invalid column count:", columns.length, "line:", line);
-          failureCount++;
-          continue;
-        }
-        
-        let [date, voucherNumber, supplier, partName, quantityStr] = columns;
-        // 空白をトリム
-        date = date.trim();
-        voucherNumber = voucherNumber.trim();
-        supplier = supplier.trim();
-        partName = partName.trim();
-        quantityStr = quantityStr.trim();
-        
-        const quantity = parseFloat(quantityStr);
-        
-        if (!date || !voucherNumber || !supplier || !partName || isNaN(quantity)) {
-          console.warn("Invalid data:", { date, voucherNumber, supplier, partName, quantity });
-          failureCount++;
-          continue;
-        }
-        
-        // 部品IDを取得（部品名から検索）
-        const parts = await getParts();
-        const part = parts.find(p => p.name.trim() === partName);
-        
-        if (!part) {
-          console.warn("Part not found:", partName, "Available parts:", parts.map(p => p.name));
-          failureCount++;
-          continue;
-        }
-        
-        // 入庫履歴を追加
-        const record: InboundRecord = {
-          id: generateId(),
-          date,
-          voucherNumber,
-          supplier,
-          partId: part.id,
-          partName,
-          quantity,
-          createdAt: new Date().toISOString(),
-        };
-        
-        const records = await getInboundRecords();
-        records.push(record);
-        await AsyncStorage.setItem(STORAGE_KEYS.INBOUND_RECORDS, JSON.stringify(records));
-        
-        // 在庫数を増やす
-        const updatedPart = { ...part, currentStock: part.currentStock + quantity };
-        await updatePart(part.id, updatedPart);
-        
-        successCount++;
-      } catch (error) {
-        console.error("Error processing line:", line, error);
-        failureCount++;
+
+    dataRows.forEach((row, rowIndex) => {
+      const lineNumber = hasHeader ? rowIndex + 2 : rowIndex + 1;
+      const getValue = (index: number) => normalizeCSVValue(row[index]);
+      const date = normalizeImportedDate(getValue(indexes.date));
+      const voucherNumber = getValue(indexes.voucherNumber);
+      const supplier = getValue(indexes.supplier);
+      const partValue = getValue(indexes.part);
+      const quantityText = normalizeImportedNumber(getValue(indexes.quantity));
+      const quantity = Number(quantityText);
+
+      if (!date || !voucherNumber || !supplier || !partValue || !quantityText || !Number.isFinite(quantity)) {
+        const reason = `${lineNumber}行目: 必須項目（日付・伝票番号・仕入先・部品名/品番・数量）が不足しています`;
+        errors.push(reason);
+        console.warn("Inbound CSV invalid row:", reason, row);
+        failureCount += 1;
+        return;
       }
+
+      const part = findPartByImportedValue(parts, partValue);
+      if (!part) {
+        const reason = `${lineNumber}行目: 部品名または品番「${partValue}」が部品マスタにありません`;
+        errors.push(reason);
+        console.warn("Inbound CSV part not found:", reason);
+        failureCount += 1;
+        return;
+      }
+
+      records.push({
+        id: generateId(),
+        date,
+        voucherNumber,
+        supplier,
+        partId: part.id,
+        partName: part.name,
+        quantity,
+        createdAt: new Date().toISOString(),
+      });
+      part.currentStock += quantity;
+      part.updatedAt = new Date().toISOString();
+      successCount += 1;
+    });
+
+    if (successCount > 0) {
+      await AsyncStorage.setItem(STORAGE_KEYS.INBOUND_RECORDS, JSON.stringify(records));
+      await AsyncStorage.setItem(STORAGE_KEYS.PARTS, JSON.stringify(parts));
     }
-    
-    return { success: successCount, failed: failureCount };
+    return buildHistoryImportResult(successCount, failureCount, errors);
   } catch (error) {
     console.error("Error importing inbound records from CSV:", error);
     throw error;
