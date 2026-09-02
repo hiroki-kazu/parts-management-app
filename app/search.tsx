@@ -235,6 +235,14 @@ export default function SearchScreen() {
             <Text className="text-sm text-muted">伝票番号</Text>
             <Text className="text-sm font-semibold text-foreground">{item.voucherNumber}</Text>
           </View>
+          {isOutbound && (
+            <View className="flex-row justify-between mb-2">
+              <Text className="text-sm text-muted">車両ナンバー</Text>
+              <Text className="text-base font-bold text-primary">
+                {(item as OutboundRecord).vehicleNumber || "未登録"}
+              </Text>
+            </View>
+          )}
           <View className="flex-row justify-between">
             <Text className="text-sm text-muted">{isOutbound ? "顧客名" : "仕入先"}</Text>
             <Text className="text-sm font-semibold text-foreground">
