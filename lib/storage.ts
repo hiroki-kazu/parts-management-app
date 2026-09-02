@@ -945,10 +945,11 @@ export async function generateOutboundRecordsCSVTemplate(): Promise<string> {
     });
     
     // サンプル行（参考用）
+    const today = getTodayDate();
     const exampleRows = [
-      "2026-07-24,DEN-001,山田自動車,1234,エンジンオイル,EO-001,2",
-      "2026-07-24,DEN-002,太郎自動車,5678,エアフィルター,AF-001,1",
-      "2026-07-23,DEN-003,花子自動車,9012,バッテリー,BAT-001,1",
+      `${today},DEN-001,山田自動車,1234,エンジンオイル,EO-001,2`,
+      `${today},DEN-002,太郎自動車,5678,エアフィルター,AF-001,1`,
+      `${today},DEN-003,花子自動車,9012,バッテリー,BAT-001,1`,
     ];
     
     // 既存データがある場合はそれを使用、ない場合はサンプルを使用
@@ -987,10 +988,11 @@ export async function generateInboundRecordsCSVTemplate(): Promise<string> {
     });
     
     // サンプル行（参考用）
+    const today = getTodayDate();
     const exampleRows = [
-      "2026-07-24,NUU-001,日本知貫気象店,エンジンオイル,EO-001,10",
-      "2026-07-24,NUU-002,トヨタ部品店,エアフィルター,AF-001,5",
-      "2026-07-23,NUU-003,パナソニック店,バッテリー,BAT-001,3",
+      `${today},NUU-001,日本知貫気象店,エンジンオイル,EO-001,10`,
+      `${today},NUU-002,トヨタ部品店,エアフィルター,AF-001,5`,
+      `${today},NUU-003,パナソニック店,バッテリー,BAT-001,3`,
     ];
     
     // 既存データがある場合はそれを使用、ない場合はサンプルを使用
@@ -1053,7 +1055,11 @@ export async function importOutboundRecordsFromCSV(
 ): Promise<HistoryImportResult> {
   try {
     const rows = parseCSV(csvContent);
-    if (rows.length === 0) return buildHistoryImportResult(0, 0, []);
+    if (rows.length === 0) {
+      return buildHistoryImportResult(0, 1, [
+        "CSVに読み込み可能な出庫データがありません。ファイルが空でないか確認してください",
+      ]);
+    }
 
     const headers = rows[0];
     const headerAliases = {
@@ -1079,6 +1085,11 @@ export async function importOutboundRecordsFromCSV(
       ? headerIndexes
       : { date: 0, voucherNumber: 1, customerName: 2, vehicleNumber: 3, partName: 4, partNumber: -1, quantity: 5 };
     const dataRows = hasHeader ? rows.slice(1) : rows;
+    if (dataRows.length === 0) {
+      return buildHistoryImportResult(0, 1, [
+        "出庫履歴CSVにヘッダーしかありません。2行目以降に履歴データを入力してください",
+      ]);
+    }
     const parts = await getParts();
     const records = await getOutboundRecords();
     const errors: string[] = [];
@@ -1152,7 +1163,11 @@ export async function importInboundRecordsFromCSV(
 ): Promise<HistoryImportResult> {
   try {
     const rows = parseCSV(csvContent);
-    if (rows.length === 0) return buildHistoryImportResult(0, 0, []);
+    if (rows.length === 0) {
+      return buildHistoryImportResult(0, 1, [
+        "CSVに読み込み可能な入庫データがありません。ファイルが空でないか確認してください",
+      ]);
+    }
 
     const headers = rows[0];
     const headerAliases = {
@@ -1176,6 +1191,11 @@ export async function importInboundRecordsFromCSV(
       ? headerIndexes
       : { date: 0, voucherNumber: 1, supplier: 2, partName: 3, partNumber: -1, quantity: 4 };
     const dataRows = hasHeader ? rows.slice(1) : rows;
+    if (dataRows.length === 0) {
+      return buildHistoryImportResult(0, 1, [
+        "入庫履歴CSVにヘッダーしかありません。2行目以降に履歴データを入力してください",
+      ]);
+    }
     const parts = await getParts();
     const records = await getInboundRecords();
     const errors: string[] = [];

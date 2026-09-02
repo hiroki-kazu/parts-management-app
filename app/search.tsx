@@ -5,7 +5,7 @@
  * 入庫履歴・出庫履歴の両方を表示可能
  */
 
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ScrollView,
   Text,
@@ -19,9 +19,10 @@ import {
   Platform,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ScreenContainer } from "@/components/screen-container";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   getOutboundRecordsByVehicleNumber,
   getCustomerByVehicleNumber,
@@ -36,13 +37,20 @@ type RecordItem = OutboundRecord | InboundRecord;
 
 export default function SearchScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ recordType?: string; showAll?: string }>();
   const insets = useSafeAreaInsets();
   const [vehicleNumber, setVehicleNumber] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [records, setRecords] = useState<RecordItem[]>([]);
-  const [recordType, setRecordType] = useState<RecordType>("outbound");
+  const [recordType, setRecordType] = useState<RecordType>(
+    params.recordType === "inbound" ? "inbound" : "outbound",
+  );
   const [isSearched, setIsSearched] = useState(false);
-  const [startDate, setStartDate] = useState<Date>(new Date(new Date().setDate(new Date().getDate() - 30)));
+  const [startDate, setStartDate] = useState<Date>(() =>
+    params.showAll === "1"
+      ? new Date(2000, 0, 1)
+      : new Date(new Date().setDate(new Date().getDate() - 30)),
+  );
   const [endDate, setEndDate] = useState<Date>(new Date());
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
@@ -53,7 +61,7 @@ export default function SearchScreen() {
   const [showEditDatePicker, setShowEditDatePicker] = useState(false);
   const [selectedRecordIds, setSelectedRecordIds] = useState<Set<string>>(new Set());
 
-  const handleSearch = async () => {
+  const handleSearch = useCallback(async () => {
     try {
       // ナンバーと期間の両方が空の場合はエラー
       if (!vehicleNumber && !startDate && !endDate) {
@@ -100,7 +108,23 @@ export default function SearchScreen() {
       console.error("Error searching records:", error);
       Alert.alert("エラー", "検索に失敗しました");
     }
-  };
+  }, [endDate, recordType, startDate, vehicleNumber]);
+
+  useEffect(() => {
+    if (params.recordType === "outbound" || params.recordType === "inbound") {
+      setRecordType(params.recordType);
+      setVehicleNumber("");
+    }
+  }, [params.recordType]);
+
+  useFocusEffect(
+    useCallback(() => {
+      // インポートで保存された履歴を、画面表示時と復帰時に必ず再取得します。
+      if (!vehicleNumber || vehicleNumber.length === 4) {
+        void handleSearch();
+      }
+    }, [handleSearch, vehicleNumber]),
+  );
 
   const handleEditRecord = (record: RecordItem) => {
     if (recordType === "outbound") {

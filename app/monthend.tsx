@@ -28,6 +28,8 @@ import {
   generateInboundRecordsCSVTemplate,
   importOutboundRecordsFromCSV,
   importInboundRecordsFromCSV,
+  getOutboundRecords,
+  getInboundRecords,
 } from "@/lib/storage";
 import * as Haptics from "expo-haptics";
 import * as FileSystem from "expo-file-system/legacy";
@@ -272,7 +274,7 @@ export default function DataProcessingScreen() {
       if (isAvailable) {
         await MailComposer.composeAsync({
           subject: `出庫履歴テンプレート`,
-          body: `出庫履歴をCSVで一括登録するためのテンプレートです。\n\n形式: 日付,伝票番号,顧客名,車両ナンバー,部品名,数量`,
+          body: `出庫履歴をCSVで一括登録するためのテンプレートです。\n\n形式: 日付,伝票番号,顧客名,車両ナンバー,部品名,品番,数量`,
           attachments: [path],
         });
         Alert.alert('成功', `${filename}がメールに添付されました`);
@@ -301,7 +303,7 @@ export default function DataProcessingScreen() {
       if (isAvailable) {
         await MailComposer.composeAsync({
           subject: `入庫履歴テンプレート`,
-          body: `入庫履歴をCSVで一括登録するためのテンプレートです。\n\n形式: 日付,伝票番号,仕入先,部品名,数量`,
+          body: `入庫履歴をCSVで一括登録するためのテンプレートです。\n\n形式: 日付,伝票番号,仕入先,部品名,品番,数量`,
           attachments: [path],
         });
         Alert.alert('成功', `${filename}がメールに添付されました`);
@@ -328,8 +330,29 @@ export default function DataProcessingScreen() {
       const { text: fileContent, encoding } = await readCSVFile(fileUri);
       
       const importResult = await importOutboundRecordsFromCSV(fileContent);
-      Alert.alert('出庫履歴インポート完了', formatHistoryImportMessage(importResult, encoding));
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const savedRecords = await getOutboundRecords();
+      const message = `${formatHistoryImportMessage(importResult, encoding)}\n保存済み出庫履歴: ${savedRecords.length}件`;
+      Alert.alert(
+        importResult.success > 0 ? '出庫履歴インポート完了' : '出庫履歴を追加できませんでした',
+        message,
+        importResult.success > 0
+          ? [
+              { text: '閉じる', style: 'cancel' },
+              {
+                text: '履歴を確認',
+                onPress: () => router.push({
+                  pathname: '/search',
+                  params: { recordType: 'outbound', showAll: '1' },
+                }),
+              },
+            ]
+          : [{ text: 'OK' }],
+      );
+      await Haptics.notificationAsync(
+        importResult.success > 0
+          ? Haptics.NotificationFeedbackType.Success
+          : Haptics.NotificationFeedbackType.Error,
+      );
     } catch (error) {
       Alert.alert('エラー', 'インポートに失敗しました');
     } finally {
@@ -351,8 +374,29 @@ export default function DataProcessingScreen() {
       const { text: fileContent, encoding } = await readCSVFile(fileUri);
       
       const importResult = await importInboundRecordsFromCSV(fileContent);
-      Alert.alert('入庫履歴インポート完了', formatHistoryImportMessage(importResult, encoding));
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const savedRecords = await getInboundRecords();
+      const message = `${formatHistoryImportMessage(importResult, encoding)}\n保存済み入庫履歴: ${savedRecords.length}件`;
+      Alert.alert(
+        importResult.success > 0 ? '入庫履歴インポート完了' : '入庫履歴を追加できませんでした',
+        message,
+        importResult.success > 0
+          ? [
+              { text: '閉じる', style: 'cancel' },
+              {
+                text: '履歴を確認',
+                onPress: () => router.push({
+                  pathname: '/search',
+                  params: { recordType: 'inbound', showAll: '1' },
+                }),
+              },
+            ]
+          : [{ text: 'OK' }],
+      );
+      await Haptics.notificationAsync(
+        importResult.success > 0
+          ? Haptics.NotificationFeedbackType.Success
+          : Haptics.NotificationFeedbackType.Error,
+      );
     } catch (error) {
       Alert.alert('エラー', 'インポートに失敗しました');
     } finally {
