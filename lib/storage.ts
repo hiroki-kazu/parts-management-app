@@ -922,39 +922,33 @@ export async function generatePartsCSVTemplate(): Promise<string> {
  */
 export async function generateOutboundRecordsCSVTemplate(): Promise<string> {
   try {
-    // 品番を必須列にした新形式。旧形式（6列）もインポート側で引き続き受け付けます。
-    const header = "日付,伝票番号,顧客名,車両ナンバー,部品名,品番,数量\n";
-    
-    // 最近の出庫履歴を取得（最大5件）
+    // 出庫入力画面で保存する全項目を、実際の入力順に並べます。
+    // 品番は部品マスタとの確実な照合に使用し、部品名も確認用として保持します。
+    const header = "日付,伝票番号,車両ナンバー,顧客名,品番,部品名,数量\n";
+
+    // 既存の出庫履歴をすべて出力し、そのまま再インポートできる形式にします。
     const records = await getOutboundRecords();
     const parts = await getParts();
-    const recentRecords = records.slice(0, 5);
-    
+
     // 既存データ行
-    const dataRows = recentRecords.map(record => {
-      const partNumber = parts.find((part) => part.id === record.partId)?.partNumber ?? "";
+    const dataRows = records.map(record => {
+      const matchedPart =
+        parts.find((part) => part.id === record.partId) ??
+        parts.find((part) => normalizeCSVValue(part.name) === normalizeCSVValue(record.partName));
+      const partNumber = matchedPart?.partNumber ?? "";
       return [
         record.date,
         record.voucherNumber,
-        record.customerName,
         record.vehicleNumber,
-        record.partName,
+        record.customerName,
         partNumber,
+        record.partName,
         record.quantity,
       ].map(escapeCSV).join(",");
     });
-    
-    // サンプル行（参考用）
-    const today = getTodayDate();
-    const exampleRows = [
-      `${today},DEN-001,山田自動車,1234,エンジンオイル,EO-001,2`,
-      `${today},DEN-002,太郎自動車,5678,エアフィルター,AF-001,1`,
-      `${today},DEN-003,花子自動車,9012,バッテリー,BAT-001,1`,
-    ];
-    
-    // 既存データがある場合はそれを使用、ない場合はサンプルを使用
-    const rows = dataRows.length > 0 ? dataRows : exampleRows;
-    return header + rows.join("\n");
+
+    // 履歴がない場合はヘッダーだけを返し、架空データの誤登録を防ぎます。
+    return header + dataRows.join("\n");
   } catch (error) {
     console.error("Error generating outbound records CSV template:", error);
     throw error;
@@ -1029,6 +1023,28 @@ function normalizeImportedDate(value: string): string {
   return `${match[1]}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}`;
 }
 
+function isValidImportedDate(value: string): boolean {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}
+
+function normalizeImportedVehicleNumber(value: string): string {
+  return normalizeCSVValue(value)
+    .replace(/[０-９]/g, (character) =>
+      String.fromCharCode(character.charCodeAt(0) - "０".charCodeAt(0) + "0".charCodeAt(0)),
+    )
+    .replace(/[^0-9]/g, "");
+}
+
 function findPartByImportedValue(parts: Part[], value: string): Part | undefined {
   const normalizedValue = normalizeCSVValue(value);
   return parts.find(
@@ -1081,9 +1097,30 @@ export async function importOutboundRecordsFromCSV(
       quantity: findCSVColumn(headers, headerAliases.quantity),
     };
     const hasHeader = Object.values(headerIndexes).some((index) => index >= 0);
+    if (hasHeader) {
+      const missingHeaders = [
+        [headerIndexes.date, "日付"],
+        [headerIndexes.voucherNumber, "伝票番号"],
+        [headerIndexes.vehicleNumber, "車両ナンバー"],
+        [headerIndexes.customerName, "顧客名"],
+        [headerIndexes.quantity, "数量"],
+      ]
+        .filter(([index]) => Number(index) < 0)
+        .map(([, label]) => String(label));
+      if (headerIndexes.partNumber < 0 && headerIndexes.partName < 0) {
+        missingHeaders.push("品番または部品名");
+      }
+      if (missingHeaders.length > 0) {
+        return buildHistoryImportResult(0, Math.max(rows.length - 1, 1), [
+          `必要な列がありません: ${missingHeaders.join("、")}`,
+        ]);
+      }
+    }
     const indexes = hasHeader
       ? headerIndexes
-      : { date: 0, voucherNumber: 1, customerName: 2, vehicleNumber: 3, partName: 4, partNumber: -1, quantity: 5 };
+      : rows[0].length >= 7
+        ? { date: 0, voucherNumber: 1, vehicleNumber: 2, customerName: 3, partNumber: 4, partName: 5, quantity: 6 }
+        : { date: 0, voucherNumber: 1, customerName: 2, vehicleNumber: 3, partName: 4, partNumber: -1, quantity: 5 };
     const dataRows = hasHeader ? rows.slice(1) : rows;
     if (dataRows.length === 0) {
       return buildHistoryImportResult(0, 1, [
@@ -1093,6 +1130,7 @@ export async function importOutboundRecordsFromCSV(
     const parts = await getParts();
     const records = await getOutboundRecords();
     const errors: string[] = [];
+    const importedCustomers = new Map<string, string>();
     let successCount = 0;
     let failureCount = 0;
 
@@ -1102,7 +1140,7 @@ export async function importOutboundRecordsFromCSV(
       const date = normalizeImportedDate(getValue(indexes.date));
       const voucherNumber = getValue(indexes.voucherNumber);
       const customerName = getValue(indexes.customerName);
-      const vehicleNumber = getValue(indexes.vehicleNumber);
+      const vehicleNumber = normalizeImportedVehicleNumber(getValue(indexes.vehicleNumber));
       const partNameValue = getValue(indexes.partName);
       const partNumberValue = getValue(indexes.partNumber);
       // 新形式では品番を優先し、旧形式では部品名を使用します。
@@ -1118,11 +1156,47 @@ export async function importOutboundRecordsFromCSV(
         return;
       }
 
-      const part = findPartByImportedValue(parts, partValue);
+      if (!isValidImportedDate(date)) {
+        const reason = `${lineNumber}行目: 日付「${date}」が正しくありません（YYYY-MM-DD形式）`;
+        errors.push(reason);
+        failureCount += 1;
+        return;
+      }
+
+      if (vehicleNumber.length !== 4) {
+        const reason = `${lineNumber}行目: 車両ナンバーは下4桁で入力してください`;
+        errors.push(reason);
+        failureCount += 1;
+        return;
+      }
+
+      if (quantity <= 0) {
+        const reason = `${lineNumber}行目: 数量は0より大きい値を入力してください`;
+        errors.push(reason);
+        failureCount += 1;
+        return;
+      }
+
+      const part = partNumberValue
+        ? parts.find(
+            (candidate) =>
+              normalizeCSVValue(candidate.partNumber) === normalizeCSVValue(partNumberValue),
+          )
+        : parts.find(
+            (candidate) =>
+              normalizeCSVValue(candidate.name) === normalizeCSVValue(partNameValue),
+          );
       if (!part) {
         const reason = `${lineNumber}行目: 部品名または品番「${partValue}」が部品マスタにありません`;
         errors.push(reason);
         console.warn("Outbound CSV part not found:", reason);
+        failureCount += 1;
+        return;
+      }
+
+      if (!part.allowDecimal && !Number.isInteger(quantity)) {
+        const reason = `${lineNumber}行目: 品番「${part.partNumber}」は小数数量に対応していません`;
+        errors.push(reason);
         failureCount += 1;
         return;
       }
@@ -1140,12 +1214,16 @@ export async function importOutboundRecordsFromCSV(
       });
       part.currentStock -= quantity;
       part.updatedAt = new Date().toISOString();
+      importedCustomers.set(vehicleNumber, customerName);
       successCount += 1;
     });
 
     if (successCount > 0) {
       await AsyncStorage.setItem(STORAGE_KEYS.OUTBOUND_RECORDS, JSON.stringify(records));
       await AsyncStorage.setItem(STORAGE_KEYS.PARTS, JSON.stringify(parts));
+      for (const [vehicleNumber, customerName] of importedCustomers) {
+        await addOrUpdateCustomer({ vehicleNumber, name: customerName });
+      }
     }
     return buildHistoryImportResult(successCount, failureCount, errors);
   } catch (error) {

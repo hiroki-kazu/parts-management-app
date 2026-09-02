@@ -274,7 +274,7 @@ export default function DataProcessingScreen() {
       if (isAvailable) {
         await MailComposer.composeAsync({
           subject: `出庫履歴テンプレート`,
-          body: `出庫履歴をCSVで一括登録するためのテンプレートです。\n\n形式: 日付,伝票番号,顧客名,車両ナンバー,部品名,品番,数量`,
+          body: `出庫履歴をCSVで一括登録するためのテンプレートです。\n\n必須項目: 日付,伝票番号,車両ナンバー,顧客名,品番,部品名,数量\n品番を優先して部品マスタと照合します。列名は変更しないでください。`,
           attachments: [path],
         });
         Alert.alert('成功', `${filename}がメールに添付されました`);
@@ -567,7 +567,7 @@ export default function DataProcessingScreen() {
           {/* 出庫履歴テンプレート */}
           <View className="bg-surface rounded-lg p-4 mb-3 border border-border">
             <Text className="text-sm font-semibold text-foreground mb-2">📤 出庫履歴テンプレート</Text>
-            <Text className="text-xs text-muted mb-3">出庫履歴をCSVで一括登録するためのテンプレートです</Text>
+            <Text className="text-xs text-muted mb-3">日付・伝票番号・車両ナンバー・顧客名・品番・部品名・数量を含み、そのまま再インポートできます</Text>
             <Pressable
               onPress={handleSendOutboundTemplate}
               disabled={isProcessing}
@@ -584,7 +584,7 @@ export default function DataProcessingScreen() {
 
           {/* 出庫履歴インポート */}
           <View className="bg-surface rounded-lg p-4 mb-3 border border-border">
-            <Text className="text-xs text-muted mb-3">出庫履歴CSVをインポート</Text>
+            <Text className="text-xs text-muted mb-3">必須列: 日付・伝票番号・車両ナンバー・顧客名・品番・部品名・数量。品番を優先して照合します</Text>
             <Pressable
               onPress={handleImportOutboundRecords}
               disabled={isProcessing}
