@@ -34,6 +34,8 @@ import {
 import * as Haptics from "expo-haptics";
 import * as FileSystem from "expo-file-system/legacy";
 import * as MailComposer from "expo-mail-composer";
+import * as Sharing from "expo-sharing";
+import JSZip from "jszip";
 
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as DocumentPicker from "expo-document-picker";
@@ -421,6 +423,80 @@ export default function DataProcessingScreen() {
     );
   };
 
+  const handleSaveZipToDevice = async (zipPath: string, zipFilename: string) => {
+    if (Platform.OS === 'web') {
+      Alert.alert('保存できません', 'タブレット本体への保存はAndroid版で利用してください。');
+      return;
+    }
+
+    try {
+      if (Platform.OS === 'android') {
+        const initialDirectoryUri = FileSystem.StorageAccessFramework.getUriForDirectoryInRoot('Download');
+        const permission = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync(
+          initialDirectoryUri,
+        );
+
+        if (!permission.granted) {
+          Alert.alert('保存をキャンセルしました', '保存先フォルダが選択されませんでした。');
+          return;
+        }
+
+        const fileNameWithoutExtension = zipFilename.replace(/\\.zip$/i, '');
+        const destinationUri = await FileSystem.StorageAccessFramework.createFileAsync(
+          permission.directoryUri,
+          fileNameWithoutExtension,
+          'application/zip',
+        );
+        const zipBase64 = await FileSystem.readAsStringAsync(zipPath, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        await FileSystem.StorageAccessFramework.writeAsStringAsync(destinationUri, zipBase64, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+
+        Alert.alert('保存完了', `${zipFilename}を選択したフォルダに保存しました。`);
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        return;
+      }
+
+      if (!(await Sharing.isAvailableAsync())) {
+        Alert.alert('保存できません', 'この端末ではファイル共有機能を利用できません。');
+        return;
+      }
+
+      await Sharing.shareAsync(zipPath, {
+        mimeType: 'application/zip',
+        UTI: 'public.zip-archive',
+        dialogTitle: 'ZIPファイルを保存・共有',
+      });
+    } catch (error) {
+      console.error('Error saving ZIP to device:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      Alert.alert('保存エラー', `ZIPファイルを本体へ保存できませんでした。\\n\\n詳細: ${errorMessage}`);
+    }
+  };
+
+  const handleEmailZip = async (zipPath: string, zipFilename: string, startStr: string, endStr: string) => {
+    try {
+      const isAvailable = await MailComposer.isAvailableAsync();
+      if (!isAvailable) {
+        Alert.alert('メール送信できません', 'メール機能が利用できません。代わりに「タブレット本体へ保存」を選択してください。');
+        return;
+      }
+
+      await MailComposer.composeAsync({
+        subject: `月末処理 ${startStr}～${endStr}`,
+        body: `月末処理ファイルを添付しています。\\n\\n期間: ${startStr} ～ ${endStr}`,
+        attachments: [zipPath],
+      });
+      Alert.alert('メール作成完了', `${zipFilename}をメールに添付しました。`);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      console.error('Error sending ZIP by email:', error);
+      Alert.alert('メール送信エラー', 'ZIPファイルのメール送信に失敗しました。');
+    }
+  };
+
   const performExportAll = async (format: 'zip') => {
     try {
       setIsProcessing(true);
@@ -447,31 +523,35 @@ export default function DataProcessingScreen() {
       const zipFilename = `月末処理_${startStr}~${endStr}.zip`;
       const zipPath = `${FileSystem.cacheDirectory}${zipFilename}`;
 
-      // ZIP作成（簡易版：複数ファイルを連結）
-      const zipContent = await createSimpleZip([
+      const zipBase64 = await createZip([
         { name: '出庫履歴.csv', content: bomOutbound },
         { name: '入庫履歴.csv', content: bomInbound },
         { name: '在庫サマリー.csv', content: bomSummary },
       ]);
 
-      await FileSystem.writeAsStringAsync(zipPath, zipContent, {
-        encoding: FileSystem.EncodingType.UTF8,
+      await FileSystem.writeAsStringAsync(zipPath, zipBase64, {
+        encoding: FileSystem.EncodingType.Base64,
       });
 
-      // メール送信
-      const isAvailable = await MailComposer.isAvailableAsync();
-      if (isAvailable) {
-        await MailComposer.composeAsync({
-          subject: `月末処理 ${startStr}～${endStr}`,
-          body: `月末処理ファイルを添付しています。\n\n期間: ${startStr} ～ ${endStr}`,
-          attachments: [zipPath],
-        });
-        
-        Alert.alert('成功', `${zipFilename}がメールに添付されました`);
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      } else {
-        Alert.alert('エラー', 'メール機能が利用できません');
-      }
+      Alert.alert(
+        'エクスポート完了',
+        `${zipFilename}を作成しました。保存方法を選択してください。`,
+        [
+          { text: '閉じる', style: 'cancel' },
+          {
+            text: 'タブレット本体へ保存',
+            onPress: () => {
+              void handleSaveZipToDevice(zipPath, zipFilename);
+            },
+          },
+          {
+            text: 'メールで送信',
+            onPress: () => {
+              void handleEmailZip(zipPath, zipFilename, startStr, endStr);
+            },
+          },
+        ],
+      );
     } catch (error) {
       console.error('Error exporting:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -481,20 +561,12 @@ export default function DataProcessingScreen() {
     }
   };
 
-  // 簡易ZIP作成関数
-  const createSimpleZip = (files: Array<{ name: string; content: string }>) => {
-    // 簡易的なZIP形式を作成（実際のZIP圧縮ではなく、ファイルを連結）
-    // 本来はライブラリを使用すべきですが、ここでは簡易版を使用
-    let zipContent = '';
-    
+  const createZip = async (files: Array<{ name: string; content: string }>) => {
+    const zip = new JSZip();
     for (const file of files) {
-      // ファイルヘッダー
-      zipContent += `--${file.name}\n`;
-      zipContent += file.content;
-      zipContent += '\n\n';
+      zip.file(file.name, file.content);
     }
-    
-    return zipContent;
+    return zip.generateAsync({ type: 'base64', compression: 'DEFLATE' });
   };
 
   return (
@@ -683,9 +755,9 @@ export default function DataProcessingScreen() {
           </View>
 
           <View className="bg-surface rounded-lg p-4 mb-3 border border-border border-2" style={{ borderColor: '#8b5cf6' }}>
-            <Text className="text-sm font-semibold text-foreground mb-2">📦 ZIP形式でダウンロード</Text>
+            <Text className="text-sm font-semibold text-foreground mb-2">📦 ZIP形式で保存・送信</Text>
             <Text className="text-xs text-muted mb-3">
-              出庫履歴、入庫履歴、在庫サマリーの3つのファイルをZIP形式で一括ダウンロード
+              出庫履歴、入庫履歴、在庫サマリーをZIPにまとめ、タブレット本体へ保存またはメール送信できます
             </Text>
             <Pressable
               onPress={handleExportAllAsFormat}
@@ -700,7 +772,7 @@ export default function DataProcessingScreen() {
               {isProcessing ? (
                 <ActivityIndicator color="white" />
               ) : (
-                <Text className="text-center text-white font-bold">ZIP形式でダウンロード</Text>
+                <Text className="text-center text-white font-bold">ZIPを作成して保存・送信</Text>
               )}
             </Pressable>
           </View>
