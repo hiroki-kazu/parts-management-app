@@ -579,9 +579,72 @@ export default function DataProcessingScreen() {
           <Text className="text-2xl font-bold text-foreground">データ処理</Text>
         </View>
 
-        {/* セクション1: 部品リストCSV */}
+        {/* セクション1: 期間指定エクスポート */}
         <View className="mb-6">
-          <Text className="text-sm font-semibold text-foreground mb-2">1. 部品リストCSV</Text>
+          <Text className="text-sm font-semibold text-foreground mb-2">1. 期間指定エクスポート</Text>
+          <View className="bg-surface rounded-lg p-4 mb-3 border border-border">
+            <Text className="text-sm text-muted mb-3">集計対象期間を指定してください</Text>
+            
+            <View className="mb-4">
+              <Text className="text-xs text-muted mb-1">開始日</Text>
+              <Pressable
+                onPress={() => setShowStartDatePicker(true)}
+                style={({ pressed }) => [{
+                  backgroundColor: pressed ? '#e5e7eb' : '#f5f5f5',
+                  borderRadius: 8,
+                  padding: 12,
+                  borderWidth: 1,
+                  borderColor: '#d1d5db',
+                }]}
+              >
+                <Text style={{ color: '#000000', fontWeight: '600' }}>{formatDate(startDate)}</Text>
+              </Pressable>
+            </View>
+            
+            <View className="mb-3">
+              <Text className="text-xs text-muted mb-1">終了日</Text>
+              <Pressable
+                onPress={() => setShowEndDatePicker(true)}
+                style={({ pressed }) => [{
+                  backgroundColor: pressed ? '#e5e7eb' : '#f5f5f5',
+                  borderRadius: 8,
+                  padding: 12,
+                  borderWidth: 1,
+                  borderColor: '#d1d5db',
+                }]}
+              >
+                <Text style={{ color: '#000000', fontWeight: '600' }}>{formatDate(endDate)}</Text>
+              </Pressable>
+            </View>
+          </View>
+
+          <View className="bg-surface rounded-lg p-4 mb-3 border border-border border-2" style={{ borderColor: '#8b5cf6' }}>
+            <Text className="text-sm font-semibold text-foreground mb-2">📦 ZIP形式で保存・送信</Text>
+            <Text className="text-xs text-muted mb-3">
+              出庫履歴、入庫履歴、在庫サマリーをZIPにまとめ、タブレット本体へ保存またはメール送信できます
+            </Text>
+            <Pressable
+              onPress={handleExportAllAsFormat}
+              disabled={isProcessing}
+              style={(({ pressed }) => [{
+                backgroundColor: '#8b5cf6',
+                borderRadius: 8,
+                paddingVertical: 12,
+                opacity: isProcessing ? 0.5 : (pressed ? 0.7 : 1),
+              }])}
+            >
+              {isProcessing ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <Text className="text-center text-white font-bold">ZIPを作成して保存・送信</Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+
+        {/* セクション2: 部品リストCSV */}
+        <View className="mb-6">
+          <Text className="text-sm font-semibold text-foreground mb-2">2. 部品リストCSV</Text>
 
           <View className="bg-surface rounded-lg p-4 mb-3 border border-border">
             <Text className="text-sm font-semibold text-foreground mb-2">📄 テンプレートをメール送信</Text>
@@ -631,9 +694,10 @@ export default function DataProcessingScreen() {
         </View>
 
 
-        {/* セクション1.5: 履歴テンプレート */}
+
+        {/* セクション3: 履歴テンプレート */}
         <View className="mb-6">
-          <Text className="text-sm font-semibold text-foreground mb-2">1.5 履歴テンプレート</Text>
+          <Text className="text-sm font-semibold text-foreground mb-2">3. 履歴テンプレート</Text>
           <Text className="text-xs text-muted mb-3">UTF-8・Shift-JIS、カンマ・タブ区切りに対応。部品名または品番で照合します。</Text>
           
           {/* 出庫履歴テンプレート */}
@@ -715,68 +779,6 @@ export default function DataProcessingScreen() {
           </View>
         </View>
 
-        {/* セクション2: 期間指定エクスポート */}
-        <View className="mb-6">
-          <Text className="text-sm font-semibold text-foreground mb-2">2. 期間指定エクスポート</Text>
-          <View className="bg-surface rounded-lg p-4 mb-3 border border-border">
-            <Text className="text-sm text-muted mb-3">集計対象期間を指定してください</Text>
-            
-            <View className="mb-4">
-              <Text className="text-xs text-muted mb-1">開始日</Text>
-              <Pressable
-                onPress={() => setShowStartDatePicker(true)}
-                style={({ pressed }) => [{
-                  backgroundColor: pressed ? '#e5e7eb' : '#f5f5f5',
-                  borderRadius: 8,
-                  padding: 12,
-                  borderWidth: 1,
-                  borderColor: '#d1d5db',
-                }]}
-              >
-                <Text style={{ color: '#000000', fontWeight: '600' }}>{formatDate(startDate)}</Text>
-              </Pressable>
-            </View>
-            
-            <View className="mb-3">
-              <Text className="text-xs text-muted mb-1">終了日</Text>
-              <Pressable
-                onPress={() => setShowEndDatePicker(true)}
-                style={({ pressed }) => [{
-                  backgroundColor: pressed ? '#e5e7eb' : '#f5f5f5',
-                  borderRadius: 8,
-                  padding: 12,
-                  borderWidth: 1,
-                  borderColor: '#d1d5db',
-                }]}
-              >
-                <Text style={{ color: '#000000', fontWeight: '600' }}>{formatDate(endDate)}</Text>
-              </Pressable>
-            </View>
-          </View>
-
-          <View className="bg-surface rounded-lg p-4 mb-3 border border-border border-2" style={{ borderColor: '#8b5cf6' }}>
-            <Text className="text-sm font-semibold text-foreground mb-2">📦 ZIP形式で保存・送信</Text>
-            <Text className="text-xs text-muted mb-3">
-              出庫履歴、入庫履歴、在庫サマリーをZIPにまとめ、タブレット本体へ保存またはメール送信できます
-            </Text>
-            <Pressable
-              onPress={handleExportAllAsFormat}
-              disabled={isProcessing}
-              style={(({ pressed }) => [{
-                backgroundColor: '#8b5cf6',
-                borderRadius: 8,
-                paddingVertical: 12,
-                opacity: isProcessing ? 0.5 : (pressed ? 0.7 : 1),
-              }])}
-            >
-              {isProcessing ? (
-                <ActivityIndicator color="white" />
-              ) : (
-                <Text className="text-center text-white font-bold">ZIPを作成して保存・送信</Text>
-              )}
-            </Pressable>
-          </View>
-        </View>
       </ScrollView>
 
       {showStartDatePicker && Platform.OS === 'ios' && (
