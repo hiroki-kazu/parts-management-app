@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { buildManualHtml, MANUAL_SECTIONS } from "../lib/manual";
+import { sanitizeExportName } from "../lib/storage";
 
 describe("PDF manual", () => {
   it("contains the current outbound, inbound, history, CSV, and PDF guidance", () => {
@@ -23,5 +24,12 @@ describe("PDF manual", () => {
     expect(html).toContain("アプリバージョン 1.0.7");
     expect(html).toContain("日付・伝票番号・車両ナンバー・顧客名・品番・部品名・数量");
     expect(html).toContain("部品在庫管理_取扱説明書.pdf");
+    expect(html).toContain("使用者名または会社名");
+    expect(html).toContain("ZIP内CSV名");
+  });
+
+  it("sanitizes the display name for local export filenames", () => {
+    expect(sanitizeExportName("整備工場 / 本店")).toBe("整備工場_本店");
+    expect(sanitizeExportName("   ")).toBe("未設定");
   });
 });

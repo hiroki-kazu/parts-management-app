@@ -30,6 +30,8 @@ import {
   importInboundRecordsFromCSV,
   getOutboundRecords,
   getInboundRecords,
+  getAppSettings,
+  sanitizeExportName,
 } from "@/lib/storage";
 import * as Haptics from "expo-haptics";
 import * as FileSystem from "expo-file-system/legacy";
@@ -39,7 +41,7 @@ import JSZip from "jszip";
 
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as DocumentPicker from "expo-document-picker";
-import { decodeCSVBase64, normalizeCSVText } from "@/lib/csv";
+import { decodeCSVBase64, normalizeCSVText, escapeCSV, parseCSV } from "@/lib/csv";
 
 async function readCSVFile(uri: string): Promise<{ text: string; encoding: string }> {
   try {
@@ -485,8 +487,8 @@ export default function DataProcessingScreen() {
       }
 
       await MailComposer.composeAsync({
-        subject: `月末処理 ${startStr}～${endStr}`,
-        body: `月末処理ファイルを添付しています。\\n\\n期間: ${startStr} ～ ${endStr}`,
+        subject: `データ処理 ${startStr}～${endStr}`,
+        body: `期間指定エクスポートを添付しています。\\n\\n期間: ${startStr} ～ ${endStr}\\n作成者: ${zipFilename.replace(/_期間指定エクスポート_.+$/i, '')}`,
         attachments: [zipPath],
       });
       Alert.alert('メール作成完了', `${zipFilename}をメールに添付しました。`);
@@ -495,6 +497,18 @@ export default function DataProcessingScreen() {
       console.error('Error sending ZIP by email:', error);
       Alert.alert('メール送信エラー', 'ZIPファイルのメール送信に失敗しました。');
     }
+  };
+
+  const addExportMetadata = (csv: string, displayName: string, exportedAt: string): string => {
+    const rows = parseCSV(csv);
+    if (rows.length === 0) return csv;
+
+    return rows
+      .map((row, index) => {
+        const metadata = index === 0 ? ['作成者', '出力日時'] : [displayName, exportedAt];
+        return [...row, ...metadata].map(escapeCSV).join(',');
+      })
+      .join('\n');
   };
 
   const performExportAll = async (format: 'zip') => {
@@ -509,24 +523,30 @@ export default function DataProcessingScreen() {
 
       const startStr = startDateLocal.toISOString().split('T')[0];
       const endStr = endDateLocal.toISOString().split('T')[0];
+      const { displayName } = await getAppSettings();
+      const safeDisplayName = sanitizeExportName(displayName);
+      const exportedAt = new Date().toISOString();
       
       const outboundCsv = await exportOutboundRecordsAsCSV(startDateLocal, endDateLocal);
       const inboundCsv = await exportInboundRecordsAsCSV(startDateLocal, endDateLocal);
       const summaryCsv = await getMonthlyInventorySummary(currentMonth, startDateLocal, endDateLocal);
+      const outboundWithMetadata = addExportMetadata(outboundCsv, displayName || '未設定', exportedAt);
+      const inboundWithMetadata = addExportMetadata(inboundCsv, displayName || '未設定', exportedAt);
+      const summaryWithMetadata = addExportMetadata(summaryCsv, displayName || '未設定', exportedAt);
 
       // UTF-8 BOMを追加
-      const bomOutbound = '\uFEFF' + outboundCsv;
-      const bomInbound = '\uFEFF' + inboundCsv;
-      const bomSummary = '\uFEFF' + summaryCsv;
+      const bomOutbound = '\uFEFF' + outboundWithMetadata;
+      const bomInbound = '\uFEFF' + inboundWithMetadata;
+      const bomSummary = '\uFEFF' + summaryWithMetadata;
 
-
-      const zipFilename = `月末処理_${startStr}~${endStr}.zip`;
+      const periodLabel = `${startStr}~${endStr}`;
+      const zipFilename = `${safeDisplayName}_期間指定エクスポート_${periodLabel}.zip`;
       const zipPath = `${FileSystem.cacheDirectory}${zipFilename}`;
 
       const zipBase64 = await createZip([
-        { name: '出庫履歴.csv', content: bomOutbound },
-        { name: '入庫履歴.csv', content: bomInbound },
-        { name: '在庫サマリー.csv', content: bomSummary },
+        { name: `${safeDisplayName}_出庫履歴_${periodLabel}.csv`, content: bomOutbound },
+        { name: `${safeDisplayName}_入庫履歴_${periodLabel}.csv`, content: bomInbound },
+        { name: `${safeDisplayName}_在庫サマリー_${periodLabel}.csv`, content: bomSummary },
       ]);
 
       await FileSystem.writeAsStringAsync(zipPath, zipBase64, {
@@ -535,7 +555,7 @@ export default function DataProcessingScreen() {
 
       Alert.alert(
         'エクスポート完了',
-        `${zipFilename}を作成しました。保存方法を選択してください。`,
+        `${zipFilename}を作成しました。作成者: ${displayName || '未設定'}\n保存方法を選択してください。`,
         [
           { text: '閉じる', style: 'cancel' },
           {

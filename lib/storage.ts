@@ -23,7 +23,57 @@ const STORAGE_KEYS = {
   INBOUND_RECORDS: "inbound_records",
   CUSTOMERS: "customers",
   MONTHLY_SNAPSHOTS: "monthly_snapshots",
+  APP_SETTINGS: "app_settings",
 };
+
+export interface AppSettings {
+  displayName: string;
+}
+
+const DEFAULT_APP_SETTINGS: AppSettings = {
+  displayName: "",
+};
+
+/**
+ * 使用者名・会社名など、端末内で使うアプリ設定を取得します。
+ */
+export async function getAppSettings(): Promise<AppSettings> {
+  try {
+    const data = await AsyncStorage.getItem(STORAGE_KEYS.APP_SETTINGS);
+    if (!data) return { ...DEFAULT_APP_SETTINGS };
+    const parsed = JSON.parse(data) as Partial<AppSettings>;
+    return {
+      displayName: typeof parsed.displayName === "string" ? parsed.displayName : "",
+    };
+  } catch (error) {
+    console.error("Error getting app settings:", error);
+    return { ...DEFAULT_APP_SETTINGS };
+  }
+}
+
+/**
+ * 使用者名・会社名を端末内へ保存します。サーバーや外部認証は使用しません。
+ */
+export async function saveAppSettings(displayName: string): Promise<AppSettings> {
+  const settings: AppSettings = {
+    displayName: displayName.trim().slice(0, 80),
+  };
+  await AsyncStorage.setItem(STORAGE_KEYS.APP_SETTINGS, JSON.stringify(settings));
+  return settings;
+}
+
+/**
+ * エクスポート用の安全な表示名を返します。
+ */
+export function sanitizeExportName(value: string): string {
+  return value
+    .trim()
+    .replace(/[\\/:*?"<>|\u0000-\u001f]/g, "_")
+    .replace(/\s+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 60) || "未設定";
+}
 
 /**
  * UUID生成（簡易版）
@@ -554,9 +604,10 @@ export async function exportOutboundRecordsAsCSV(startDate?: Date, endDate?: Dat
     
     const header = "日付,伝票番号,顧客名,ナンバー,部品名,数量\n";
     const rows = filteredRecords
-      .map(
-        (r) =>
-          `${r.date},${r.voucherNumber},${r.customerName},${r.vehicleNumber},${r.partName},${r.quantity}`
+      .map((r) =>
+        [r.date, r.voucherNumber, r.customerName, r.vehicleNumber, r.partName, r.quantity]
+          .map(escapeCSV)
+          .join(","),
       )
       .join("\n");
     return header + rows;
@@ -592,7 +643,7 @@ export async function exportInboundRecordsAsCSV(startDate?: Date, endDate?: Date
     
     const header = "日付,伝票番号,仕入先,部品名,数量\n";
     const rows = filteredRecords
-      .map((r) => `${r.date},${r.voucherNumber},${r.supplier},${r.partName},${r.quantity}`)
+      .map((r) => [r.date, r.voucherNumber, r.supplier, r.partName, r.quantity].map(escapeCSV).join(","))
       .join("\n");
     return header + rows;
   } catch (error) {
@@ -661,9 +712,10 @@ export async function getMonthlyInventorySummary(month: string, startDate?: Date
     // CSV形式で出力
     const header = "部品名,品番,単価,出庫数,入庫数,現在庫数,在庫金額\n";
     const rows = summary
-      .map(
-        (s) =>
-          `${s.partName},${s.partNumber},${s.unitPrice},${s.outboundQty},${s.inboundQty},${s.currentStock},${s.inventoryValue}`
+      .map((s) =>
+        [s.partName, s.partNumber, s.unitPrice, s.outboundQty, s.inboundQty, s.currentStock, s.inventoryValue]
+          .map(escapeCSV)
+          .join(","),
       )
       .join("\n");
 
